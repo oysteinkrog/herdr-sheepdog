@@ -13,6 +13,7 @@ import { createApprovals, openQuestions, renderApprovalCardsHTML, pageTitle } fr
 import { createBuildReloader, takeReloadDraft } from './reload.js';
 import { voiceKeyAction } from './shortcuts.js';
 import { addFragment, closeLine, fragmentText } from './transcript.js';
+import { fmtUSD, spendLine, spendTitle } from './spend.js';
 import { applyUpdateBanner } from '/static/update-banner.js';
 
 const $ = (id) => document.getElementById(id);
@@ -720,9 +721,10 @@ async function resetConversation() {
     const r = await authedFetch('/api/conversation/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ via: 'voice_page' }) });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || `${r.status}`);
-    result.textContent = `reset ${data.reset_id} at ${data.at}`;
+    result.textContent = 'New conversation started.';
+    refreshSpend();
   } catch (err) {
-    result.textContent = `error: ${err.message}`;
+    result.textContent = `Could not start a new conversation: ${err.message}`;
   } finally {
     btn.disabled = false;
   }
@@ -815,6 +817,7 @@ function render() {
   $('meter-text').textContent = state.muted ? 'muted' : lv.peak > 0 ? `peak ${(20 * Math.log10(lv.peak)).toFixed(0)} dBFS` : '';
 
   $('file-controls').classList.toggle('hidden', state.source !== 'file');
+  $('file-row').classList.toggle('hidden', state.source !== 'file');
   $('file-play').disabled = !state.fileBuffer;
   $('file-play').textContent = state.fileSource ? 'restart file' : 'play into mic';
   $('file-text').textContent = state.fileBuffer
@@ -1089,6 +1092,82 @@ function applyStateSnapshot(data) {
   renderApprovals();
 }
 
+// ---------------------------------------------------------------- cost
+
+// How often the cost line is refreshed while the page is visible.
+const SPEND_EVERY_MS = 15000;
+
+async function refreshSpend() {
+  if (document.visibilityState === 'hidden') return;
+  try {
+    const r = await authedFetch('/api/spend', { cache: 'no-store' });
+    if (!r.ok) return;
+    const data = await r.json().catch(() => null);
+    if (!data) return;
+    $('spend-line').textContent = spendLine(data);
+    $('sp-today').textContent = spendTitle(data.today);
+    $('sp-conv').textContent = spendTitle(data.conversation);
+    $('sp-since').textContent = data.since ? new Date(data.since).toLocaleString() : '–';
+    if (data.voice_per_minute_usd) $('sp-voice-price').textContent = `$${data.voice_per_minute_usd}`;
+  } catch (_) {
+    /* offline: the next tick retries */
+  }
+}
+
+// ---------------------------------------------------------------- voice pick
+
+// The GPT-Live model and voice (GET/PUT /api/voice/openai). The daemon
+// keeps the pick in its state file, so it holds across sessions and
+// devices. The card stays hidden when the daemon has no GPT-Live voice.
+function fillSelect(sel, values, current) {
+  sel.textContent = '';
+  for (const v of values) {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = v;
+    if (v === current) o.selected = true;
+    sel.appendChild(o);
+  }
+}
+
+function applyVoicePick(data) {
+  fillSelect($('pick-model'), data.models || [], data.model);
+  fillSelect($('pick-voice'), data.voices || [], data.voice);
+  $('pick-note').textContent = data.provider === 'openai'
+    ? 'Changes apply when the next voice session starts: after 45 s of quiet, or after New conversation.'
+    : `The voice is ${data.provider || 'off'} now, not GPT-Live: these apply when GPT-Live is the voice.`;
+  $('voice-pick').classList.remove('hidden');
+}
+
+async function loadVoicePick() {
+  try {
+    const r = await authedFetch('/api/voice/openai', { cache: 'no-store' });
+    if (!r.ok) return;
+    const data = await r.json().catch(() => null);
+    if (data) applyVoicePick(data);
+  } catch (_) {
+    /* no GPT-Live, or offline: the card stays hidden */
+  }
+}
+
+async function saveVoicePick() {
+  const result = $('pick-result');
+  result.textContent = 'Saving…';
+  try {
+    const r = await authedFetch('/api/voice/openai', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: $('pick-model').value, voice: $('pick-voice').value }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || `${r.status}`);
+    applyVoicePick(data);
+    result.textContent = 'Saved.';
+  } catch (err) {
+    result.textContent = `Not saved: ${err.message}`;
+    loadVoicePick();
+  }
+}
+
 let refreshInFlight = null;
 
 function refreshAppState() {
@@ -1165,8 +1244,9 @@ async function init() {
   const params = new URLSearchParams(location.search);
   state.gate.opts = gateOptions(params);
   if (params.get('src') === 'file') {
+    // Developer hook (daemon started with --dev): a test file stands in
+    // for the microphone. There is no source picker on the page.
     state.source = 'file';
-    $('source').value = 'file';
     loadBundledFixture(true).catch(() => {});
   }
 
@@ -1195,13 +1275,6 @@ async function init() {
       e.preventDefault();
       sendText();
     }
-  });
-  $('source').addEventListener('change', async (e) => {
-    state.source = e.target.value;
-    if (!state.userDisconnected) {
-      try { await startSource(); } catch (err) { showError(`audio: ${err.message || err}`); }
-    }
-    render();
   });
   $('file-input').addEventListener('change', async (e) => {
     const f = e.target.files && e.target.files[0];
@@ -1303,6 +1376,12 @@ async function init() {
 
   refreshAppState();
   openEventsStream();
+  $('pick-model').addEventListener('change', saveVoicePick);
+  $('pick-voice').addEventListener('change', saveVoicePick);
+  loadVoicePick();
+  refreshSpend();
+  setInterval(refreshSpend, SPEND_EVERY_MS);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshSpend(); });
 
   setInterval(() => {
     render();

@@ -115,6 +115,11 @@ input[type=file] { max-width: 100%; }
 .card-body th { text-align: left; background: var(--code); font-weight: 600; }
 .card-body th, .card-body td { padding: .3rem .55rem; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: normal; }
 
+.stats summary { cursor: pointer; list-style: revert; }
+.stats summary h2 { display: inline; }
+.stats[open] summary { margin-bottom: .4rem; }
+.spend { margin: .3rem 0 0; color: var(--muted); }
+.spend strong { color: var(--fg); font-weight: 600; }
 .stats dl { display: grid; grid-template-columns: max-content 1fr; gap: .15rem 1rem; margin: 0; font-size: .9em; }
 .stats dt { color: var(--muted); }
 .stats dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; }

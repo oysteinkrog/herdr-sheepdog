@@ -68,6 +68,7 @@ func newCoreDriverOver(t *testing.T, srv *hctest.Server, procs *coreProcTable) *
 	t.Helper()
 	client := hc.NewClient(srv.Path)
 	backend := herdrcore.New(client, nil)
+	backend.ObserveRaw = herdrcore.NoObserve
 	backend.FallbackPoll = 20 * time.Millisecond
 	backend.Backoff = herdr.Backoff{Min: 10 * time.Millisecond, Max: 50 * time.Millisecond}
 

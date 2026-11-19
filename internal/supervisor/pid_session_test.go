@@ -415,6 +415,7 @@ func TestWrappedUtilityWorkersDiscoverSessionsEndToEnd(t *testing.T) {
 
 	hcSrv := hctest.New(t)
 	hcBackend := herdrcore.New(hc.NewClient(hcSrv.Path), h.log)
+	hcBackend.ObserveRaw = herdrcore.NoObserve
 	h.sup.herdr = hcBackend
 
 	sh1, sh2 := 100, 101

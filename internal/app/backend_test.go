@@ -86,7 +86,9 @@ func TestHCTermStartsABridgeWithoutHerdrBin(t *testing.T) {
 	srv := hctest.New(t)
 	srv.Add(hc.Terminal{Address: "t1", State: "live", Argv: []string{"claude"}})
 	roots := []string{"/work/projects"}
-	deps := hcTerm(herdrcore.New(hc.NewClient(srv.Path), nil), roots)
+	core := herdrcore.New(hc.NewClient(srv.Path), nil)
+	core.ObserveRaw = herdrcore.NoObserve
+	deps := hcTerm(core, roots)
 	ctx := context.Background()
 	if err := deps.Check(ctx); err != nil {
 		t.Fatalf("Check against a core with terminal.attach = %v", err)

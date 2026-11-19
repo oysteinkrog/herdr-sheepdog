@@ -30,6 +30,9 @@ type Backend struct {
 	// LookPath finds an executable on PATH (exec.LookPath by default); it is
 	// a field so tests need no real agents installed.
 	LookPath func(file string) (string, error)
+	// ObserveRaw returns the first repaint of a pane for ReadANSI
+	// (`hc attach --observe` by default); a field so tests need no hc.
+	ObserveRaw func(ctx context.Context, paneID string) ([]byte, error)
 	// GOOS names the target operating system (runtime.GOOS by default) when
 	// choosing OS priority wrappers for spawned shells.
 	GOOS string

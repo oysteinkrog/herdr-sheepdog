@@ -23,6 +23,7 @@ func newBackend(t *testing.T) (*herdrcore.Backend, *hctest.Server) {
 	t.Helper()
 	srv := hctest.New(t)
 	b := herdrcore.New(hc.NewClient(srv.Path), nil)
+	b.ObserveRaw = herdrcore.NoObserve
 	b.FallbackPoll = 20 * time.Millisecond
 	b.Backoff = herdr.Backoff{Min: 10 * time.Millisecond, Max: 50 * time.Millisecond}
 	return b, srv

@@ -104,7 +104,9 @@ func (s *Supervisor) Screen(ctx context.Context, paneID string, lines int) (Scre
 	}, nil
 }
 
-var ErrANSIUnavailable = errors.New("ANSI read unavailable")
+// ErrANSIUnavailable is herdr.ErrANSIUnavailable, so backends outside this
+// package (herdrcore) can return it without importing the supervisor.
+var ErrANSIUnavailable = herdr.ErrANSIUnavailable
 
 // ANSIReader is a Herdr that can read a pane with its colours kept
 // (herdr.Client, inject.Herdr).

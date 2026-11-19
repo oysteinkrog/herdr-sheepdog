@@ -25,14 +25,19 @@ type OpenAIVoiceDeps struct {
 	ListModels func(ctx context.Context) ([]string, error)
 }
 
-// openAIModelsTTL is how long a GPT-Live model list is kept.
-const openAIModelsTTL = 10 * time.Minute
+// openAIModelsTTL is how long a GPT-Live model list is kept, and
+// openAIModelsRetry how long after a failed list the next try waits.
+const (
+	openAIModelsTTL   = 10 * time.Minute
+	openAIModelsRetry = time.Minute
+)
 
 // openAIModelCache caches ListModels.
 type openAIModelCache struct {
 	mu     sync.Mutex
 	models []string
 	at     time.Time
+	failed time.Time
 }
 
 // VoiceOpenAIResponse is the body of GET and PUT /api/voice/openai.
@@ -74,12 +79,15 @@ func (s *Server) openAIModels(ctx context.Context) []string {
 	c := &s.openAIList
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.models == nil || s.deps.Now().Sub(c.at) > openAIModelsTTL {
+	now := s.deps.Now()
+	if (c.models == nil || now.Sub(c.at) > openAIModelsTTL) && now.Sub(c.failed) > openAIModelsRetry {
 		ctx, cancel := context.WithTimeout(ctx, catalogTimeout)
 		ids, err := d.ListModels(ctx)
 		cancel()
 		if err == nil && len(ids) > 0 {
-			c.models, c.at = ids, s.deps.Now()
+			c.models, c.at = ids, now
+		} else {
+			c.failed = now
 		}
 	}
 	out := slices.Clone(c.models)

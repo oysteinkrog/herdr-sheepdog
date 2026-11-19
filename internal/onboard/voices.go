@@ -120,7 +120,7 @@ func ListGPTLiveModels(ctx context.Context, ep Endpoints, key string) ([]string,
 	var ids []string
 	seen := map[string]bool{}
 	for _, m := range out.Data {
-		if strings.HasPrefix(m.ID, "gpt-live") && !seen[m.ID] {
+		if gptlive.IsVoiceModel(m.ID) && !seen[m.ID] {
 			seen[m.ID] = true
 			ids = append(ids, m.ID)
 		}

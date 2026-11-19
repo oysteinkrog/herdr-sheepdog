@@ -156,7 +156,7 @@ func (s *Server) handleSetVoiceOpenAI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	model, voiceName := strings.TrimSpace(req.Model), strings.ToLower(strings.TrimSpace(req.Voice))
-	if model != "" && !strings.HasPrefix(model, "gpt-live") {
+	if model != "" && !gptlive.IsVoiceModel(model) {
 		writeError(w, http.StatusBadRequest, "model "+model+" is not a GPT-Live model")
 		return
 	}

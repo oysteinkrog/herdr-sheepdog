@@ -12,6 +12,7 @@ import { createWakeController, createPingTracker } from './wake.js';
 import { createApprovals, openQuestions, renderApprovalCardsHTML, pageTitle } from './approvals.js';
 import { createBuildReloader, takeReloadDraft } from './reload.js';
 import { voiceKeyAction } from './shortcuts.js';
+import { addFragment, closeLine, fragmentText } from './transcript.js';
 import { applyUpdateBanner } from '/static/update-banner.js';
 
 const $ = (id) => document.getElementById(id);
@@ -604,7 +605,7 @@ function onControl(m) {
       closeTranscript('out');
       break;
     case 'transcript':
-      addTranscript(m.dir, m.text, !!m.final);
+      addTranscript(m.dir, fragmentText(m), !!m.final);
       break;
     case 'card':
       if (m.card && !state.transcript.some((t) => t.card && t.card.card_id === m.card.card_id)) {
@@ -634,30 +635,11 @@ function onControl(m) {
 // ---------------------------------------------------------------- transcript
 
 function addTranscript(dir, text, final) {
-  const last = state.transcript[state.transcript.length - 1];
-  // A typed utterance is echoed locally; --voice=off sends it back as an
-  // `in` transcript, so skip that duplicate.
-  if (dir === 'in' && final && last && last.dir === 'in' && last.local && last.text === text) {
-    last.local = false;
-    return;
-  }
-  // Output fragments may never carry final (contract): the other
-  // direction starting is the boundary, and so is a flush.
-  closeTranscript(dir === 'in' ? 'out' : 'in');
-  // An empty final closes an open line; with none open there is nothing to show.
-  if (text === '' && final && !(last && last.dir === dir && !last.final)) return;
-  if (last && last.dir === dir && !last.final) {
-    last.text += text;
-    last.final = final;
-  } else {
-    state.transcript.push({ dir, text, final });
-  }
-  while (state.transcript.length > TRANSCRIPT_LINES) state.transcript.shift();
+  addFragment(state.transcript, dir, text, final, TRANSCRIPT_LINES);
 }
 
 function closeTranscript(dir) {
-  const last = state.transcript[state.transcript.length - 1];
-  if (last && last.dir === dir) last.final = true;
+  closeLine(state.transcript, dir);
 }
 
 // ---------------------------------------------------------------- actions

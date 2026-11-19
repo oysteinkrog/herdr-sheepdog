@@ -101,7 +101,7 @@ perl -e 'alarm 45; exec @ARGV' go run scripts/readme-media/cdprec.go \
   -seconds 15 -out "$EVID/voice-frames" | tee "$EVID/cdprec.log"
 curl -fsS --max-time 3 "$E2E_URL/api/state" | jq -e '(.questions | length) == 0' && ls "$EVID"/voice-frames/frame-*.jpg >/dev/null
 ```
-Real `/voice` DOM handles (`web/voice/index.html`, `web/voice/approvals.js`): `#btn-connect`, `#btn-mute`, `#btn-stop`, `#ws-text` (`ws: open`), `#voice-text` (`voice: connected`), `#text-input`, `#btn-text`, `#transcript .line.out`, `#approvals .approval-card.primary`, `#approvals .approval-opt[data-option-index="1"]`, `.approval-outcome`, `#source` (`file`), `#file-input`, `#file-bundled`, `#file-play`.
+Real `/voice` DOM handles (`web/voice/index.html`, `web/voice/approvals.js`): `#btn-connect`, `#btn-mute`, `#btn-stop`, `#ws-text` (`ws: open`), `#voice-text` (`voice: connected`), `#text-input`, `#btn-text`, `#transcript .line.out`, `#approvals .approval-card.primary`, `#approvals .approval-opt[data-option-index="1"]`, `.approval-outcome`, `#file-input` (only with `?src=file`; there is no source picker), `#file-bundled`, `#file-play`.
 
 ## 5. Real Voice & Daily Budget
 

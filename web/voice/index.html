@@ -39,33 +39,24 @@
 </section>
 
 <main id="app-main">
-  <section id="approvals" class="approvals hidden" aria-label="Open questions" aria-live="polite"></section>
-
   <section class="card controls">
     <div class="row buttons">
       <button id="btn-connect" class="primary">Connect</button>
       <button id="btn-mute" disabled title="M">Mute</button>
       <button id="btn-stop" class="danger" disabled title="Space / Esc">Stop</button>
-      <span id="mute-flag" class="pill hidden">muted</span>
-      <span id="speaking-flag" class="pill speaking hidden">speaking</span>
-    </div>
-    <div class="row">
-      <button id="btn-new-conversation" class="danger" title="reset the orchestrator's transcript and the voice session's memory; the agents, promises, notes and pending prompts are kept">New conversation</button>
-      <span id="new-conversation-result" class="muted small"></span>
+      <button id="btn-new-conversation" class="danger" title="Clear the conversation with the voice and the orchestrator. The agents, promises, notes and open questions stay.">New conversation</button>
     </div>
     <div class="row">
       <label class="meter-label">mic
         <span class="meter" title="input level"><span id="level-bar"></span><span id="level-peak"></span></span>
       </label>
       <span class="muted small" id="meter-text"></span>
+      <span id="mute-flag" class="pill hidden">muted</span>
+      <span id="speaking-flag" class="pill speaking hidden">speaking</span>
+      <span id="new-conversation-result" class="muted small"></span>
     </div>
-    <div class="row">
-      <label>source
-        <select id="source">
-          <option value="mic">microphone</option>
-          <option value="file">test file</option>
-        </select>
-      </label>
+    <p class="spend small" id="spend-line" aria-live="off">Cost: loading…</p>
+    <div class="row hidden" id="file-row">
       <span id="file-controls" class="row hidden">
         <input type="file" id="file-input" accept=".wav,audio/wav,audio/x-wav,audio/*">
         <button id="file-bundled" title="GET /testdata/question.wav (daemon started with --dev)">use bundled question.wav</button>
@@ -78,21 +69,46 @@
     <p id="aec-hint" class="hint hidden"></p>
   </section>
 
-  <section class="card">
-    <div class="row">
-      <input id="text-input" placeholder="type an utterance (Enter to send)" autocomplete="off">
-      <button id="btn-text" disabled>Send</button>
-    </div>
-    <p class="muted small">Sent as <code>{"type":"text"}</code>: with <code>--voice=off</code> the daemon's text router answers; with a voice session it is a typed utterance to the model.</p>
-  </section>
+  <section id="approvals" class="approvals hidden" aria-label="Open questions" aria-live="polite"></section>
 
   <section class="card">
     <h2>Transcript</h2>
     <div id="transcript" class="transcript"><p class="muted">Nothing yet.</p></div>
   </section>
 
-  <section class="card stats">
-    <h2>Stats</h2>
+  <section class="card">
+    <div class="row">
+      <input id="text-input" placeholder="Type a message (Enter to send)" autocomplete="off">
+      <button id="btn-text" disabled>Send</button>
+    </div>
+  </section>
+
+  <section class="card hidden" id="voice-pick">
+    <h2>Voice</h2>
+    <div class="row">
+      <label>Model
+        <select id="pick-model"></select>
+      </label>
+      <label>Voice
+        <select id="pick-voice"></select>
+      </label>
+      <span class="muted small" id="pick-result"></span>
+    </div>
+    <p class="muted small" id="pick-note">Changes apply when the next voice session starts: after 45 s of quiet, or after New conversation.</p>
+  </section>
+
+  <details class="card stats" id="spend-details">
+    <summary><h2>Cost details</h2></summary>
+    <dl>
+      <dt>today</dt><dd id="sp-today">–</dd>
+      <dt>this conversation</dt><dd id="sp-conv">–</dd>
+      <dt>counted since</dt><dd id="sp-since">–</dd>
+    </dl>
+    <p class="muted small">An estimate at list prices, from what this computer logged today. Voice: the GPT-Live session time OpenAI reports, at <span id="sp-voice-price">$0.05</span> per minute. Orchestrator: the tokens of each step, at the model's price per million tokens. Agent sessions and other tools are not counted.</p>
+  </details>
+
+  <details class="card stats" id="stats">
+    <summary><h2>Stats</h2></summary>
     <dl>
       <dt>audio context</dt><dd id="st-ctx">–</dd>
       <dt>frames sent</dt><dd id="st-frames">0</dd>
@@ -107,9 +123,9 @@
       <dt>ping</dt><dd id="st-ping">–</dd>
       <dt>protocol</dt><dd id="st-protocol">–</dd>
     </dl>
-  </section>
+  </details>
 
-  <p class="muted small">Keys: <kbd>1</kbd>–<kbd>9</kbd> answer question · <kbd>M</kbd> mute · <kbd>Space</kbd>/<kbd>Esc</kbd> stop · <kbd>?</kbd> shortcuts. Open this page on the exact host:port the daemon prints (same-origin WebSocket). <code>?src=file</code> preselects the test file source; <code>?gate=off</code> disables the silence gate (<code>?gate_floor=8&amp;gate_hold=300&amp;gate_preroll=100</code> tune it).</p>
+  <p class="muted small">Keys: <kbd>1</kbd>–<kbd>9</kbd> answer question · <kbd>M</kbd> mute · <kbd>Space</kbd>/<kbd>Esc</kbd> stop · <kbd>?</kbd> shortcuts. Open this page on the exact host:port the daemon prints (same-origin WebSocket). <code>?gate=off</code> turns off the silence gate (<code>?gate_floor=8&amp;gate_hold=300&amp;gate_preroll=100</code> tune it).</p>
 </main>
 
 <dialog id="card-dialog" class="card-dialog" aria-labelledby="card-title">

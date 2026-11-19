@@ -71,7 +71,7 @@ func (s *Session) open(reason string, resets int) {
 		}
 	}
 	s.log.Log(logSource, "voice.session_open", "", map[string]any{
-		"reason": reason, "session_id": lc.id, "model": s.cfg.Model, "voice": s.cfg.Voice,
+		"reason": reason, "session_id": lc.id, "model": lc.model, "voice": lc.voice,
 		"dur_ms": s.now().Sub(started).Milliseconds(), "replayed_chunks": len(pending), "sessions": n,
 	})
 	s.emit(voice.EventStatus{Status: voice.StatusConnected, Reason: ReasonLive})
@@ -99,12 +99,13 @@ func (s *Session) dialStart(reason string) (*liveConn, error) {
 	input := s.recapItemsLocked(reason)
 	s.held = nil
 	s.mu.Unlock()
-	lc := &liveConn{conn: conn, seq: seq, reason: reason, openedAt: s.now(), cancel: rcancel, started: make(chan struct{}), done: make(chan struct{})}
+	model, voiceName := s.cfg.modelVoice()
+	lc := &liveConn{conn: conn, seq: seq, reason: reason, model: model, voice: voiceName, openedAt: s.now(), cancel: rcancel, started: make(chan struct{}), done: make(chan struct{})}
 	s.wg.Add(1)
 	go func() { defer s.wg.Done(); s.readLoop(rctx, lc) }()
 	start := startEvent{Type: evSessionStart, EventID: fmt.Sprintf("start_%d", seq), Session: sessionConfig{
-		Model: s.cfg.Model, Instructions: instructions,
-		Audio:      audioConfig{Format: audioFormat{Type: "audio/pcm", Rate: SampleRate}, Output: audioOutput{Voice: s.cfg.Voice}},
+		Model: model, Instructions: instructions,
+		Audio:      audioConfig{Format: audioFormat{Type: "audio/pcm", Rate: SampleRate}, Output: audioOutput{Voice: voiceName}},
 		Delegation: delegationCfg{Type: "client"},
 		Input:      input,
 	}}
@@ -113,7 +114,7 @@ func (s *Session) dialStart(reason string) (*liveConn, error) {
 		_ = conn.Close()
 		return nil, err
 	}
-	s.log.Log(logSource, "voice.system_prompt", "", map[string]any{"text": instructions, "model": s.cfg.Model, "provider": "openai", "recap_items": len(input)})
+	s.log.Log(logSource, "voice.system_prompt", "", map[string]any{"text": instructions, "model": model, "provider": "openai", "recap_items": len(input)})
 	select {
 	case <-lc.started:
 		return lc, nil

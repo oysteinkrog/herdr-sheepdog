@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/kccarlos/herdr-sheepdog/internal/herdr"
 	"github.com/kccarlos/herdr-sheepdog/internal/identity"
 	"github.com/kccarlos/herdr-sheepdog/internal/inject"
+	"github.com/kccarlos/herdr-sheepdog/internal/onboard"
 	"github.com/kccarlos/herdr-sheepdog/internal/pair"
 	"github.com/kccarlos/herdr-sheepdog/internal/push"
 	"github.com/kccarlos/herdr-sheepdog/internal/redact"
@@ -269,7 +271,10 @@ func (a *App) wire() error {
 			ConfigPath: so.ConfigPath, EnvPath: so.EnvPath, Config: cfg, Endpoints: so.Endpoints,
 			Service: so.Service, InstallService: so.InstallService, Demo: so.Demo,
 			ClearOverrides: func() error {
-				return store.UpdateSession(func(s *state.Session) { s.VoiceProvider, s.BrainProvider, s.BrainModel = "", "", "" })
+				return store.UpdateSession(func(s *state.Session) {
+					s.VoiceProvider, s.BrainProvider, s.BrainModel = "", "", ""
+					s.OpenAIVoiceModel, s.OpenAIVoice = "", ""
+				})
 			},
 			SysAddrs: pair.SystemAddrs, TailscaleCLI: web.TailscaleInstalled, Boot: time.Now(),
 		}
@@ -286,6 +291,22 @@ func (a *App) wire() error {
 	if a.voice != nil {
 		deps.Voice = a.voice
 		deps.VoiceSwitch = a.voiceSwitch
+		if oc := cfg.Voice.OpenAI; oc.APIKey != "" && opts.Voice != VoiceFake {
+			ep := onboard.DefaultEndpoints()
+			if opts.Setup != nil && opts.Setup.Endpoints.OpenAIBase != "" {
+				ep = opts.Setup.Endpoints
+			}
+			deps.OpenAIVoice = &web.OpenAIVoiceDeps{
+				Model: oc.Model, Voice: oc.Voice,
+				ListModels: func(ctx context.Context) ([]string, error) {
+					ids, res := onboard.ListGPTLiveModels(ctx, ep, oc.APIKey)
+					if res.Status != onboard.OK {
+						return nil, errors.New(res.Detail)
+					}
+					return ids, nil
+				},
+			}
+		}
 	}
 	if a.wref != nil {
 		deps.Watcher = a.wref

@@ -343,6 +343,11 @@ type Session struct {
 	// /api/voice/provider, the /debug picker); empty means "use the
 	// configured voice.provider".
 	VoiceProvider string `json:"voice_provider,omitempty"`
+	// OpenAIVoiceModel and OpenAIVoice are the GPT-Live model and output
+	// voice chosen at runtime (PUT /api/voice/openai, the /voice page);
+	// empty means "use the configured voice.openai.model / .voice".
+	OpenAIVoiceModel string `json:"openai_voice_model,omitempty"`
+	OpenAIVoice      string `json:"openai_voice,omitempty"`
 	// Promises are the session's promises, oldest first, every status.
 	Promises []Promise `json:"promises,omitempty"`
 	// Investigations are the background jobs, newest last, capped at

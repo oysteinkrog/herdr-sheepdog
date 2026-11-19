@@ -121,6 +121,9 @@ type Deps struct {
 	// in Store's session.voice_provider); nil (--voice=off) answers the
 	// GET with provider "off" and the PUT with 503.
 	VoiceSwitch VoiceSwitcher
+	// OpenAIVoice backs GET and PUT /api/voice/openai (the GPT-Live model
+	// and voice picked on /voice); nil without a GPT-Live provider.
+	OpenAIVoice *OpenAIVoiceDeps
 	// Watcher receives POST /api/herdr/event status events; nil means
 	// --herdr=mock.
 	Watcher EventInjector
@@ -298,6 +301,12 @@ type Server struct {
 	auth    *authState
 	enroll  enrollCodes
 	live    liveConns
+	// spend adds up today's estimated spend from the event log, read
+	// through spendTap (spend.go, GET /api/spend).
+	spend    *spendMeter
+	spendTap *eventlog.Tap
+	// openAIList caches the GPT-Live model list (voicepick.go).
+	openAIList openAIModelCache
 	// activityWatch backs the Live Activity pushes (activity.go).
 	activityWatch activityWatch
 	// limits rate-limits sign-in and pairing per source address; conns
@@ -383,6 +392,8 @@ func New(deps Deps) (*Server, error) {
 	s := &Server{deps: deps, log: deps.Logger, mux: http.NewServeMux(), closing: make(chan struct{}), audio: feedback.NewAudioLog(), limits: newRateLimiter()}
 	s.hub = newHub(s)
 	s.idem = newIdemStore(deps.Now)
+	s.spend = newSpendMeter(deps.Now, nil)
+	s.spendTap = s.spend.start(deps.Log)
 	if ch, ok := s.cardHost(); ok {
 		ch.SetCardSink(cardSink{s.hub})
 	}
@@ -557,6 +568,9 @@ func (s *Server) routeTable() ([]route, error) {
 		route{"POST /api/turn", accessDevice, s.handleTurn},
 		route{"GET /api/voice/providers", accessDevice, s.handleVoiceProviders},
 		route{"PUT /api/voice/provider", accessDevice, s.handleSetVoiceProvider},
+		route{"GET /api/voice/openai", accessDevice, s.handleVoiceOpenAI},
+		route{"PUT /api/voice/openai", accessDevice, s.handleSetVoiceOpenAI},
+		route{"GET /api/spend", accessDevice, s.handleSpend},
 		route{"GET /api/brain/models", accessDevice, s.handleBrainModels},
 		route{"PUT /api/brain/model", accessDevice, s.handleSetBrainModel},
 		route{"PUT /api/herdr/backend", accessDevice, s.handleHerdrBackend},
@@ -770,6 +784,7 @@ func (s *Server) Serve(ctx context.Context, drain time.Duration) error {
 		return err
 	case <-ctx.Done():
 	}
+	s.spendTap.Close()
 	close(s.closing)
 	s.hub.shutdown("shutdown")
 	shutCtx, cancel := context.WithTimeout(context.Background(), drain)

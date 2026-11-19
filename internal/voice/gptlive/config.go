@@ -40,6 +40,11 @@ type Config struct {
 	Model string
 	// Voice is the output voice (default marin).
 	Voice string
+	// Pick, when set, is asked for the model and voice each time a live
+	// session opens; an empty answer keeps Model or Voice. It lets a
+	// pick made at runtime (PUT /api/voice/openai) take effect on the
+	// next open without a new Session.
+	Pick func() (model, voice string)
 	// URL overrides the endpoint (tests).
 	URL string
 	// Instructions renders the session instructions; it is called on
@@ -163,4 +168,21 @@ func (c Config) withDefaults() Config {
 		c.EventBuffer = 1024
 	}
 	return c
+}
+
+// modelVoice is the model and voice the next live session opens with:
+// Pick's answer, falling back to Model and Voice.
+func (c Config) modelVoice() (model, voice string) {
+	model, voice = c.Model, c.Voice
+	if c.Pick != nil {
+		if m, v := c.Pick(); m != "" || v != "" {
+			if m != "" {
+				model = m
+			}
+			if v != "" {
+				voice = v
+			}
+		}
+	}
+	return model, voice
 }

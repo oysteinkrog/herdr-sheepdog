@@ -950,6 +950,31 @@ control messages; the daemon resamples for GPT-Live (which runs at
   answers with the GET shape; `400 {"error":"provider \"x\": …"}` for an
   unknown or unavailable provider (the reason is in the message), `503`
   with `--voice=off`.
+- `GET /api/voice/openai` (device-authenticated) → the GPT-Live model
+  and output voice the next GPT-Live session opens with:
+  `{"provider":"openai","model":"gpt-live-1","voice":"marin","picked":false,"configured_model":"gpt-live-1","configured_voice":"marin","models":["gpt-live-1"],"voices":["marin","cedar",…],"price_per_minute_usd":0.05}`.
+  `models` are the `gpt-live…` ids the OpenAI key lists (`GET /models`,
+  cached 10 min) plus the configured and default ones; `voices` is the
+  GPT-Live voice list. `404` when the daemon has no GPT-Live provider.
+- `PUT /api/voice/openai {"model":"gpt-live-1","voice":"cedar"}` keeps
+  the pick in the state file (`session.openai_voice_model`,
+  `session.openai_voice`; a value equal to the config is stored as no
+  pick) and answers with the GET shape. It wins over
+  `voice.openai.model` / `.voice` from the next GPT-Live session on; a
+  session open now keeps its model and voice until it closes. `400` for a
+  model outside the `gpt-live` family or an unknown voice. The `/voice`
+  page's Voice card uses it.
+- `GET /api/spend` (device-authenticated) → today's estimated spend
+  (local date) and this conversation's (since the last New conversation
+  today, else since local midnight): `{"day","today":{…},"conversation":{…},"since","voice_per_minute_usd","ready"}`,
+  each part `{total_usd, voice_seconds, voice_usd, brain_usd, brain_steps,
+  brain_in_tokens, brain_cached_tokens, brain_out_tokens, brain_unpriced}`.
+  Voice is the GPT-Live billed seconds (`voice.session_close billed_s`,
+  plus the open session's latest usage) at $0.05/min; the orchestrator
+  is each `brain.step`'s tokens at `eval.Prices` (cache reads at the
+  cached price, an unknown model at `eval.UnknownPrice`). Gemini Live
+  time, `cli.run` costs and the agents' own sessions are not counted.
+  `ready` is false until today's event file has been read back.
 - `GET /api/state` has top-level `voice_provider` and `voice_model`, and
   `conversation_started_at`: when the current conversation began (the
   last "New conversation" reset, below, or daemon start), and `update`,

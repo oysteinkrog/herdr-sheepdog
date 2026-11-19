@@ -143,6 +143,8 @@ type liveConn struct {
 	seq      int
 	id       string
 	reason   string // why it was opened
+	model    string // the model and voice it was opened with (Config.Pick)
+	voice    string
 	openedAt time.Time
 	cancel   context.CancelFunc
 	started  chan struct{}

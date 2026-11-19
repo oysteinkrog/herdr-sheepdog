@@ -71,6 +71,10 @@ func (a *App) voiceProviders(gcfg gemini.Config, handler voice.ToolHandler) []vo
 		}
 		ocfg := gptlive.Config{
 			APIKey: oc.APIKey, Model: oc.Model, Voice: oc.Voice,
+			// The model and voice picked on the /voice page (state file
+			// session.openai_voice_model / openai_voice) win over the
+			// config, from the next live session on.
+			Pick:      a.openAIPick,
 			IdleClose: time.Duration(oc.IdleCloseS) * time.Second,
 			Handler:   handler,
 			Classify:  router.Route,
@@ -93,6 +97,16 @@ func (a *App) voiceProviders(gcfg gemini.Config, handler voice.ToolHandler) []vo
 		o.Reason = "no OPENAI_API_KEY"
 	}
 	return []voice.Provider{g, o}
+}
+
+// openAIPick is the GPT-Live model and voice picked at runtime (PUT
+// /api/voice/openai), "" for none.
+func (a *App) openAIPick() (model, voiceName string) {
+	if a.store == nil {
+		return "", ""
+	}
+	ss := a.store.Snapshot().Session
+	return ss.OpenAIVoiceModel, ss.OpenAIVoice
 }
 
 // restoreVoiceProvider applies the provider picked at runtime in an

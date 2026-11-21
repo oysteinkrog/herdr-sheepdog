@@ -85,7 +85,7 @@ func Default() Config {
 		Anthropic:   Anthropic{BaseURL: DefaultAnthropicBaseURL, Effort: "medium", EventEffort: "low", Fallbacks: true},
 		Web:         Web{Bind: DefaultWebBind, Port: DefaultWebPort, Shell: true, Files: true},
 		CLI:         defaultCLI(),
-		Voice:       Voice{Name: DefaultVoiceName, Provider: "gemini", OpenAI: VoiceOpenAI{Model: "gpt-live-1", Voice: "marin", IdleCloseS: 45}},
+		Voice:       Voice{Name: DefaultVoiceName, Provider: "gemini", OpenAI: VoiceOpenAI{Model: "gpt-live-1.1", Voice: "marin", IdleCloseS: 45}},
 		Supervisor:  Supervisor{Chattiness: DefaultChattiness, RecentMinutes: 30, PromiseTTLS: 7200, CancelWindowS: 30, RepromptPollS: 10, RepeatWindowS: 60, AuthoriseWindowS: 30, ProjectRoots: []string{"~/Documents"}},
 		Brain:       defaultBrain(),
 		Prompts:     Prompts{Dir: filepath.Join(home, ".config", "sheepdog", "prompts")},

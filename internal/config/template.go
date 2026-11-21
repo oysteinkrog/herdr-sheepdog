@@ -64,7 +64,7 @@ func Template() string {
 # api_key is normally left unset here: OPENAI_API_KEY is read from the
 # environment instead. The voice only: the brain never uses it.
 # api_key = ""
-# model = "gpt-live-1"
+# model = "gpt-live-1.1"
 # voice = "marin"
 # idle_close_s = 45   # close the GPT-Live session after this long without speech, a reply or a push
 

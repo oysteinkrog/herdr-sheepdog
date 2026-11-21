@@ -67,7 +67,7 @@ func TestVoiceProviderSwitchPersists(t *testing.T) {
 	run(func(url string) {
 		var got web.VoiceProvidersResponse
 		getJSON(t, url+"/api/voice/providers", &got)
-		if got.Provider != "openai" || got.Model != "gpt-live-1" || len(got.Providers) != 2 {
+		if got.Provider != "openai" || got.Model != "gpt-live-1.1" || len(got.Providers) != 2 {
 			t.Fatalf("providers = %+v", got)
 		}
 		if g := got.Providers[0]; g.ID != "gemini" || g.Available || g.Reason != "no GEMINI_API_KEY" {
@@ -87,7 +87,7 @@ func TestVoiceProviderSwitchPersists(t *testing.T) {
 		}
 		var hello web.HelloResponse
 		getJSON(t, url+"/api/hello", &hello)
-		if hello.VoiceProvider != "openai" || hello.VoiceModel != "gpt-live-1" {
+		if hello.VoiceProvider != "openai" || hello.VoiceModel != "gpt-live-1.1" {
 			t.Errorf("hello = %+v", hello)
 		}
 	})

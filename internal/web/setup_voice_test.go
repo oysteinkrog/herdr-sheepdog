@@ -118,12 +118,12 @@ func TestSetupVoiceModelsGPTLive(t *testing.T) {
 	f := newSetupFixture(t, config.Default())
 	f.sd.Endpoints.OpenAIBase = fakeOpenAIModels(t)
 	r, raw := voiceModels(t, f, `{"provider":"openai","key":"`+voiceOpenAIKey+`"}`)
-	if strings.Join(r.Models, ",") != "gpt-live-1,gpt-live-2" || r.Default != "gpt-live-1" || !r.Listed || strings.Contains(raw, voiceOpenAIKey) {
+	if strings.Join(r.Models, ",") != "gpt-live-1.1,gpt-live-2,gpt-live-1" || r.Default != "gpt-live-1.1" || !r.Listed || strings.Contains(raw, voiceOpenAIKey) {
 		t.Errorf("listed: %s", raw)
 	}
 	// No key saved and none typed: the default, and why.
 	r, raw = voiceModels(t, f, `{"provider":"openai"}`)
-	if strings.Join(r.Models, ",") != "gpt-live-1" || r.Error == "" {
+	if strings.Join(r.Models, ",") != "gpt-live-1.1" || r.Error == "" {
 		t.Errorf("no key: %s", raw)
 	}
 }
@@ -137,7 +137,7 @@ func TestSetupStateHasTheVoicePicks(t *testing.T) {
 	if g.Model != "gemini-3.8-live" || g.Voice != "Fenrir" || g.DefaultVoice != "Puck" || strings.Join(g.Voices, ",") != "Puck,Kore,Charon,Aoede,Fenrir" {
 		t.Errorf("gemini pick: %+v", g)
 	}
-	if o.Model != "gpt-live-1" || o.Voice != "marin" || o.Voices[0] != "marin" || len(o.Voices) < 10 {
+	if o.Model != "gpt-live-1.1" || o.Voice != "marin" || o.Voices[0] != "marin" || len(o.Voices) < 10 {
 		t.Errorf("openai pick: %+v", o)
 	}
 	if st.Voice.OpenAIPrice != "$0.05 per minute of open session" {

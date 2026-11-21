@@ -10,8 +10,9 @@ import (
 
 // Defaults.
 const (
-	// DefaultModel is the Live model (docs: "Model ID: gpt-live-1").
-	DefaultModel = "gpt-live-1"
+	// DefaultModel is the Live model. gpt-live-1.1 (2026-11-19) is the model
+	// OpenAI recommends for new sessions, at the same $0.05 per minute.
+	DefaultModel = "gpt-live-1.1"
 	// DefaultVoice is the documented default voice.
 	DefaultVoice = "marin"
 	// DefaultURL is the primary WebSocket endpoint.

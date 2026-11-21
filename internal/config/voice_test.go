@@ -15,7 +15,7 @@ func TestVoiceProviderConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Voice.Provider != "gemini" || cfg.Voice.OpenAI.Model != "gpt-live-1" || cfg.Voice.OpenAI.Voice != "marin" || cfg.Voice.OpenAI.IdleCloseS != 45 || cfg.Gemini.StartSensitivity != "low" || cfg.Gemini.EndSensitivity != "default" {
+	if cfg.Voice.Provider != "gemini" || cfg.Voice.OpenAI.Model != "gpt-live-1.1" || cfg.Voice.OpenAI.Voice != "marin" || cfg.Voice.OpenAI.IdleCloseS != 45 || cfg.Gemini.StartSensitivity != "low" || cfg.Gemini.EndSensitivity != "default" {
 		t.Errorf("defaults = %+v / %s %s", cfg.Voice, cfg.Gemini.StartSensitivity, cfg.Gemini.EndSensitivity)
 	}
 	path := filepath.Join(t.TempDir(), "c.toml")

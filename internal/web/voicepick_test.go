@@ -21,7 +21,7 @@ func TestVoiceOpenAIPick(t *testing.T) {
 	if code := h.getJSON("/api/voice/openai", &got); code != http.StatusOK || got.Model != "gpt-live-1" || got.Voice != "marin" || got.Picked {
 		t.Fatalf("GET = %d %+v", code, got)
 	}
-	if !slices.Equal(got.Models, []string{"gpt-live-2", "gpt-live-1"}) || !slices.Contains(got.Voices, "cedar") || got.PricePerMinuteUS != 0.05 {
+	if !slices.Equal(got.Models, []string{"gpt-live-2", "gpt-live-1", "gpt-live-1.1"}) || !slices.Contains(got.Voices, "cedar") || got.PricePerMinuteUS != 0.05 {
 		t.Errorf("choices = %v %v %v", got.Models, got.Voices, got.PricePerMinuteUS)
 	}
 	var e map[string]string
@@ -54,7 +54,7 @@ func TestVoiceOpenAIFallbacks(t *testing.T) {
 		ListModels: func(context.Context) ([]string, error) { return nil, errors.New("offline") },
 	}})
 	var got VoiceOpenAIResponse
-	if code := h.getJSON("/api/voice/openai", &got); code != http.StatusOK || !slices.Equal(got.Models, []string{"gpt-live-1-preview", "gpt-live-1"}) || got.Voice != "marin" {
+	if code := h.getJSON("/api/voice/openai", &got); code != http.StatusOK || !slices.Equal(got.Models, []string{"gpt-live-1-preview", "gpt-live-1.1"}) || got.Voice != "marin" {
 		t.Fatalf("GET = %d %+v", code, got)
 	}
 	h2 := newHarness(t, harnessOpts{voice: true})

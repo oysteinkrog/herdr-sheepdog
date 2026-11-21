@@ -27,9 +27,11 @@ android {
         if (signing.isNotEmpty()) {
             create("release") {
                 storeFile = file(signing.getProperty("storeFile"))
-                storePassword = signing.getProperty("storePassword")
+                // The password comes from the environment (with-secrets), never from a file in git.
+                val pw = System.getenv("SHEEPDOG_ANDROID_SIGNING_PASSWORD") ?: signing.getProperty("storePassword")
+                storePassword = pw
                 keyAlias = signing.getProperty("keyAlias")
-                keyPassword = signing.getProperty("keyPassword")
+                keyPassword = signing.getProperty("keyPassword") ?: pw
             }
         }
     }

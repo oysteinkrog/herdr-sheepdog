@@ -13,6 +13,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -106,7 +110,7 @@ class MainActivity : ComponentActivity() {
     private var linkError by mutableStateOf<String?>(null)
 
     private fun handleLink(u: Uri) {
-        val link = PairLink.parse(u.toString().replaceFirst("sheepdog://pair", "https://pair/voice")) ?: return
+        val link = PairLink.parse(u.toString()) ?: return
         Session.pair(link) { err -> runOnUiThread { linkError = err } }
     }
 
@@ -176,23 +180,26 @@ private fun MainScreen(s: UiState, onConnect: () -> Unit) {
             items(s.lines, key = { it.id }) { l -> Bubble(l, s.textScale) }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(typed, { typed = it }, Modifier.weight(1f), placeholder = { Text("Type to the assistant") }, singleLine = true)
+            OutlinedTextField(typed, { typed = it }, Modifier.weight(1f), placeholder = { Text("Type to the assistant") }, singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { Session.sendText(typed); typed = "" }))
             TextButton(onClick = { Session.sendText(typed); typed = "" }, enabled = typed.isNotBlank()) { Text("Send") }
         }
         // One row of buttons, big enough to hit without looking.
         Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val tall = Modifier.height(64.dp)
+            val pad = PaddingValues(horizontal = 4.dp)
             if (!s.connected) {
                 Button(onClick = onConnect, modifier = tall.weight(1f)) { Text("Connect", fontSize = 18.sp) }
             } else {
-                Button(onClick = { Session.toggleMute() }, modifier = tall.weight(1.6f),
+                Button(onClick = { Session.toggleMute() }, modifier = tall.weight(1.4f),
                     colors = if (s.muted) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error) else ButtonDefaults.buttonColors()) {
                     Text(if (s.muted) "Unmute" else "Mute", fontSize = 18.sp)
                 }
-                OutlinedButton(onClick = { Session.stopTalking() }, modifier = tall.weight(1f)) { Text("Stop") }
+                OutlinedButton(onClick = { Session.stopTalking() }, modifier = tall.weight(1f), contentPadding = pad) { Text("Stop", maxLines = 1, softWrap = false) }
             }
-            OutlinedButton(onClick = { Session.newConversation() }, modifier = tall.weight(1f)) { Text("New") }
-            if (s.connected) OutlinedButton(onClick = { Session.hangUp() }, modifier = tall.weight(1f)) { Text("Hang up") }
+            OutlinedButton(onClick = { Session.newConversation() }, modifier = tall.weight(1f), contentPadding = pad) { Text("New", maxLines = 1, softWrap = false) }
+            if (s.connected) OutlinedButton(onClick = { Session.hangUp() }, modifier = tall.weight(1.2f), contentPadding = pad) { Text("Hang up", maxLines = 1, softWrap = false) }
         }
     }
     if (settings) SettingsDialog(s) { settings = false }

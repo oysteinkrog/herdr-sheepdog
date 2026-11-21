@@ -45,6 +45,11 @@ type Config struct {
 	// pick made at runtime (PUT /api/voice/openai) take effect on the
 	// next open without a new Session.
 	Pick func() (model, voice string)
+	// Speed, when set, is asked for the speaking speed (one of Speeds)
+	// each time a live session opens; "" or an unknown answer means
+	// DefaultSpeed. It is added to the instructions (WithSpeed), since
+	// GPT-Live has no speed field. nil adds no pacing line at all.
+	Speed func() string
 	// URL overrides the endpoint (tests).
 	URL string
 	// Instructions renders the session instructions; it is called on
@@ -185,4 +190,16 @@ func (c Config) modelVoice() (model, voice string) {
 		}
 	}
 	return model, voice
+}
+
+// speed is the speaking speed the next live session opens with:
+// "normal" (no pacing line) without Config.Speed.
+func (c Config) speed() string {
+	if c.Speed == nil {
+		return "normal"
+	}
+	if v := c.Speed(); IsSpeed(v) {
+		return v
+	}
+	return DefaultSpeed
 }

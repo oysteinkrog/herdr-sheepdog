@@ -348,6 +348,9 @@ type Session struct {
 	// empty means "use the configured voice.openai.model / .voice".
 	OpenAIVoiceModel string `json:"openai_voice_model,omitempty"`
 	OpenAIVoice      string `json:"openai_voice,omitempty"`
+	// OpenAIVoiceSpeed is the GPT-Live speaking speed chosen on the /voice
+	// page (gptlive.Speeds); empty means gptlive.DefaultSpeed.
+	OpenAIVoiceSpeed string `json:"openai_voice_speed,omitempty"`
 	// Promises are the session's promises, oldest first, every status.
 	Promises []Promise `json:"promises,omitempty"`
 	// Investigations are the background jobs, newest last, capped at

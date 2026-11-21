@@ -71,7 +71,7 @@ func (s *Session) open(reason string, resets int) {
 		}
 	}
 	s.log.Log(logSource, "voice.session_open", "", map[string]any{
-		"reason": reason, "session_id": lc.id, "model": lc.model, "voice": lc.voice,
+		"reason": reason, "session_id": lc.id, "model": lc.model, "voice": lc.voice, "speed": lc.speed,
 		"dur_ms": s.now().Sub(started).Milliseconds(), "replayed_chunks": len(pending), "sessions": n,
 	})
 	s.emit(voice.EventStatus{Status: voice.StatusConnected, Reason: ReasonLive})
@@ -100,7 +100,9 @@ func (s *Session) dialStart(reason string) (*liveConn, error) {
 	s.held = nil
 	s.mu.Unlock()
 	model, voiceName := s.cfg.modelVoice()
-	lc := &liveConn{conn: conn, seq: seq, reason: reason, model: model, voice: voiceName, openedAt: s.now(), cancel: rcancel, started: make(chan struct{}), done: make(chan struct{})}
+	speed := s.cfg.speed()
+	instructions = WithSpeed(instructions, speed)
+	lc := &liveConn{conn: conn, seq: seq, reason: reason, model: model, voice: voiceName, speed: speed, openedAt: s.now(), cancel: rcancel, started: make(chan struct{}), done: make(chan struct{})}
 	s.wg.Add(1)
 	go func() { defer s.wg.Done(); s.readLoop(rctx, lc) }()
 	start := startEvent{Type: evSessionStart, EventID: fmt.Sprintf("start_%d", seq), Session: sessionConfig{

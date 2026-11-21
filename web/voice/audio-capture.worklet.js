@@ -26,6 +26,10 @@ class CaptureProcessor extends AudioWorkletProcessor {
     this.port.onmessage = (e) => {
       const m = e.data;
       if (m.type === 'mute') this.muted = !!m.on;
+      // Loudspeaker mode: while the assistant speaks the mic hears it
+      // (no echo cancellation), so the page ducks the mic: it sends
+      // silence instead, and the gate withholds it as usual.
+      if (m.type === 'duck') this.ducked = !!m.on;
     };
   }
 
@@ -34,7 +38,7 @@ class CaptureProcessor extends AudioWorkletProcessor {
     // A source that has ended (file playback finished) leaves the input
     // empty; treat that as silence so frames keep flowing like a quiet mic
     // (the gate then closes after its hold time).
-    const block = ch && ch.length ? ch : this.silence;
+    const block = ch && ch.length && !this.ducked ? ch : this.silence;
     if (this.muted) {
       // Drop everything while muted. The pipeline keeps its filter state,
       // which is fine: a mute is a discontinuity anyway.

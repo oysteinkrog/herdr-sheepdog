@@ -31,6 +31,9 @@ const TRANSCRIPT_LINES = 8;
 const BUNDLED_FIXTURE = '/testdata/question.wav';
 
 const state = {
+  speaker: 'loud', // loud or call (Settings, Sound); set from storage at start
+  ducked: false,
+  duckTimer: null,
   ctx: null,
   captureNode: null,
   playbackNode: null,
@@ -226,6 +229,7 @@ function onPlaybackMessage(m) {
   }
   if (m.type === 'stats') {
     state.playback = m;
+    updateDuck();
     if (m.voicePeak > (state.voicePeakMax || 0)) state.voicePeakMax = m.voicePeak;
     if (m.underruns !== state.lastUnderruns) {
       console.log(`[voice] playback underruns=${m.underruns} drains=${m.drains} buffered=${m.bufferedMs}ms`);
@@ -273,7 +277,14 @@ async function startSource() {
       throw new Error('getUserMedia is not available (open the page over http://localhost or https)');
     }
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      // Loudspeaker mode opens the mic without echo cancellation. With it
+      // on, Chrome on Android switches to call audio and plays the voice
+      // at call volume, which is too quiet at arm's length (measured
+      // 2026-11-21: the page already sent full-scale audio). Without it
+      // the voice plays at media volume, and the page ducks the mic
+      // while the voice speaks (setDuck) so the model does not hear
+      // itself. Call mode keeps echo cancellation and talking over it.
+      audio: { channelCount: 1, echoCancellation: state.speaker !== 'loud', noiseSuppression: true, autoGainControl: state.speaker !== 'loud' },
     });
     state.micStream = stream;
     state.micSource = ctx.createMediaStreamSource(stream);
@@ -290,11 +301,38 @@ async function startSource() {
 // for echoCancellation is only a hint) and shows a one-line warning when
 // the model would hear its own voice: echo cancellation off, or not
 // reported on a mobile browser.
+// Loudspeaker mode's mic duck: on while the voice plays and for
+// DUCK_TAIL_MS after (the room's echo and the jitter buffer's last
+// samples), off in call mode.
+const DUCK_TAIL_MS = 500;
+function setDuck(on) {
+  if (state.ducked === on) return;
+  state.ducked = on;
+  const port = state.captureNode && state.captureNode.port;
+  if (port) port.postMessage({ type: 'duck', on });
+}
+function updateDuck() {
+  if (state.speaker !== 'loud') {
+    clearTimeout(state.duckTimer);
+    setDuck(false);
+    return;
+  }
+  if (state.playback.speaking) {
+    clearTimeout(state.duckTimer);
+    state.duckTimer = null;
+    setDuck(true);
+  } else if (state.ducked && !state.duckTimer) {
+    state.duckTimer = setTimeout(() => { state.duckTimer = null; if (!state.playback.speaking) setDuck(false); }, DUCK_TAIL_MS);
+  }
+}
+
 function checkEchoCancellation(track) {
   let settings;
   try { settings = track && track.getSettings ? track.getSettings() : undefined; } catch (_) { settings = undefined; }
   state.aec = aecStatus(settings);
-  const warn = aecWarn(state.aec, isMobile(navigator.userAgent, navigator.maxTouchPoints || 0));
+  // Loudspeaker mode turns echo cancellation off on purpose and ducks the
+  // mic instead, so no warning then.
+  const warn = state.speaker !== 'loud' && aecWarn(state.aec, isMobile(navigator.userAgent, navigator.maxTouchPoints || 0));
   const el = $('aec-hint');
   el.textContent = AEC_HINT;
   el.classList.toggle('hidden', !warn);
@@ -1372,6 +1410,17 @@ async function init() {
   });
   $('file-loop').addEventListener('change', (e) => {
     if (state.fileSource) state.fileSource.loop = e.target.checked;
+  });
+
+  // Speaker mode: loud (default) or call. A change reopens the mic.
+  const SPEAKER_KEY = 'sheepdog.voice.speaker';
+  try { state.speaker = localStorage.getItem(SPEAKER_KEY) === 'call' ? 'call' : 'loud'; } catch (_) { state.speaker = 'loud'; }
+  $('set-speaker').value = state.speaker;
+  $('set-speaker').addEventListener('change', (e) => {
+    state.speaker = e.target.value === 'call' ? 'call' : 'loud';
+    try { localStorage.setItem(SPEAKER_KEY, state.speaker); } catch (_) { /* storage blocked */ }
+    updateDuck();
+    if (state.micStream) startSource().catch((err) => console.log(`[voice] mic reopen failed: ${err.message}`));
   });
 
   state.volume = loadVolume();

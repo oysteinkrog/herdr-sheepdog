@@ -113,6 +113,12 @@
   <section class="settings-section">
     <h2>Sound</h2>
     <div class="settings-fields">
+      <label>Speaker
+        <select id="set-speaker">
+          <option value="loud">Loudspeaker: loud, the mic pauses while the assistant talks (default)</option>
+          <option value="call">Call: quieter, you can talk over the assistant</option>
+        </select>
+      </label>
       <label>Volume
         <select id="set-volume">
           <option value="normal">Normal (as received)</option>
@@ -122,7 +128,7 @@
         </select>
       </label>
     </div>
-    <p class="muted small">Changes at once. Phones play this page at the call volume while the microphone is on: if it is still quiet, press the phone's volume up button while the assistant speaks.</p>
+    <p class="muted small">Loudspeaker plays the voice at the phone's media volume. To stop the assistant mid-sentence, tap Stop. Call mode plays at the quieter call volume. Volume changes at once; Speaker reopens the microphone.</p>
   </section>
 
   <section class="settings-section">

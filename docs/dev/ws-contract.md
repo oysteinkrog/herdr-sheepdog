@@ -806,7 +806,8 @@ Only this computer gets one (loopback only):
   state or log line carries a code.
 
 **Enrolling.** `POST /api/devices/enroll` (public; the code is the
-credential) `{"code":"…","public_key":"<base64url>","name":"iPhone","kind":"ios"|"ipados"|"browser","hardware":true}`:
+credential) `{"code":"…","public_key":"<base64url>","name":"iPhone","kind":"ios"|"ipados"|"android"|"browser","hardware":true}`
+(`android` is the Android app, `android/`):
 
 - `public_key` is the device's P-256 public key as the uncompressed point
   (65 bytes, `0x04‖X‖Y`); a DER SubjectPublicKeyInfo is accepted too.

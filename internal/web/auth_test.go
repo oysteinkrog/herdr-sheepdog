@@ -143,6 +143,23 @@ func TestEnrollCodeWorksOnce(t *testing.T) {
 	}
 }
 
+// The Android app enrolls as kind android
+// and signs in with the pin like the iPhone app.
+func TestEnrollAndroid(t *testing.T) {
+	h := newHarness(t, harnessOpts{})
+	key, pub := newDeviceKey(t)
+	st, out := h.enrollDevice(h.pairCode(), pub, DeviceAndroid)
+	if st != 200 || out["device_id"] == "" || out["name"] != "Test phone" {
+		t.Fatalf("enroll = %d %v", st, out)
+	}
+	if st, sess, bad := h.signIn(key, out["device_id"], h.srv.deps.TLS.Pin(), time.Now()); st != 200 || sess.Ticket == "" {
+		t.Fatalf("session = %d %v", st, bad)
+	}
+	if st, _, bad := h.signIn(key, out["device_id"], "", time.Now()); st != 401 || bad["reason"] != "bad_signature" {
+		t.Errorf("empty pin = %d %v, want bad_signature (only a browser may sign without the pin)", st, bad)
+	}
+}
+
 // A code expires 10 minutes after it is shown.
 func TestEnrollCodeExpires(t *testing.T) {
 	var e enrollCodes

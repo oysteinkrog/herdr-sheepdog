@@ -241,9 +241,9 @@ func (s *Server) handleEnroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch req.Kind {
-	case DeviceIOS, DeviceIPadOS, DeviceBrowser:
+	case DeviceIOS, DeviceIPadOS, DeviceAndroid, DeviceBrowser:
 	default:
-		writeError(w, http.StatusBadRequest, "kind must be ios, ipados or browser")
+		writeError(w, http.StatusBadRequest, "kind must be ios, ipados, android or browser")
 		return
 	}
 	_, pub, err := parseDeviceKey(req.PublicKey)

@@ -800,6 +800,9 @@ function render() {
   setDot('voice', v === '…' ? 'idle' : state.voiceStalled ? 'stalled' : v === 'open' && state.playback.speaking ? 'open speaking' : v, `voice: ${v}${state.voiceReason && v === 'closed' ? ` (${state.voiceReason})` : ''}${state.daemonMuted && open ? ' · muted' : ''}${state.voiceStalled && open ? ' · stalled (no reply)' : ''}`);
 
   const btnConnect = $('btn-connect');
+  // Before connecting, the big mic button (Start) connects; this button
+  // appears once connected, as Disconnect.
+  btnConnect.classList.toggle('hidden', !connected);
   $('connect-label').textContent = connected ? 'Disconnect' : 'Connect';
   btnConnect.setAttribute('aria-label', connected ? 'Disconnect' : 'Connect');
   btnConnect.title = connected ? 'Disconnect from sheepdog' : 'Connect to sheepdog';

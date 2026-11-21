@@ -150,7 +150,7 @@ main#app-main { height: calc(100dvh - 3.6rem); min-height: 28rem; }
 .mic-btn .mic-slash { display: none; }
 .mic-btn[data-state="off"] .mic-slash { display: inline; }
 
-.icon-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; margin: .5rem 0 .2rem; }
+.icon-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: .5rem; margin: .5rem 0 .2rem; }
 .icon-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem;
   min-height: 4rem; padding: .4rem; font-size: .9rem; }
 .icon-btn span { line-height: 1.1; }

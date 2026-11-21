@@ -298,6 +298,11 @@ type Message struct {
 	// than 1.0, docs/dev/ws-contract.md "Playback jitter buffer".
 	Rate        *float64 `json:"rate,omitempty"`
 	StretchedMs *int     `json:"stretched_ms,omitempty"`
+	// VoicePeak is the loudest voice sample the page played since its
+	// last ping, as received (before its volume boost), 0..32767;
+	// VolumeGain is the boost the page applies.
+	VoicePeak  *int     `json:"voice_peak,omitempty"`
+	VolumeGain *float64 `json:"volume_gain,omitempty"`
 	// AudioState is the page's AudioContext state ("running",
 	// "suspended", "interrupted", "closed"): a context that is not
 	// running plays nothing, and its worklet stops reporting, so the

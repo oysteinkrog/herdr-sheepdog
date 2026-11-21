@@ -74,8 +74,12 @@ class PlaybackProcessor extends AudioWorkletProcessor {
       playedMs: Math.round((p.stats.played / p.outRate) * 1000),
       rate: Math.round(p.rate * 1000) / 1000,
       stretchedMs: p.stretchedMs,
+      // The loudest sample of the voice as received (before the page's
+      // volume boost), since the last stats message: 0..1.
+      voicePeak: this.voicePeak || 0,
       at: currentTime,
     });
+    this.voicePeak = 0;
   }
 
   process(_inputs, outputs) {
@@ -83,6 +87,9 @@ class PlaybackProcessor extends AudioWorkletProcessor {
     const ch0 = out[0];
     if (!ch0) return true;
     this.player.render(ch0);
+    let pk = this.voicePeak || 0;
+    for (let i = 0; i < ch0.length; i++) { const a = Math.abs(ch0[i]); if (a > pk) pk = a; }
+    this.voicePeak = pk;
     for (let c = 1; c < out.length; c++) out[c].set(ch0); // mono → every output channel
     this.blocks++;
     this.postStats(false);

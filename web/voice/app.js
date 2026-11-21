@@ -120,7 +120,20 @@ async function ensureAudio() {
     numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1],
   });
   playback.port.onmessage = (e) => onPlaybackMessage(e.data);
-  playback.connect(ctx.destination);
+  // Volume: a boost, then a limiter so the boost cannot clip. The voice
+  // used to play at its received level, and phones play a page that has
+  // the mic open (echo cancellation on) at the quieter call volume, so it
+  // was hard to hear. The boost is a Settings choice (VOLUME_GAIN).
+  const volume = ctx.createGain();
+  volume.gain.value = volumeGain(state.volume);
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -6;
+  limiter.knee.value = 3;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.002;
+  limiter.release.value = 0.12;
+  playback.connect(volume).connect(limiter).connect(ctx.destination);
+  state.volumeNode = volume;
   state.playbackNode = playback;
   state.playbackPolicySent = false;
   if (state.playbackProvider) setPlaybackPolicy(state.playbackProvider);
@@ -213,6 +226,7 @@ function onPlaybackMessage(m) {
   }
   if (m.type === 'stats') {
     state.playback = m;
+    if (m.voicePeak > (state.voicePeakMax || 0)) state.voicePeakMax = m.voicePeak;
     if (m.underruns !== state.lastUnderruns) {
       console.log(`[voice] playback underruns=${m.underruns} drains=${m.drains} buffered=${m.bufferedMs}ms`);
       state.lastUnderruns = m.underruns;
@@ -518,6 +532,10 @@ function sendPingPacket() {
     buffer_ms: state.playback.bufferedMs || 0,
     rate: state.playback.rate || 1,
     stretched_ms: state.playback.stretchedMs || 0,
+    // The loudest voice sample since the last ping, as received (before
+    // the volume boost), 0..32767, and the boost applied.
+    voice_peak: Math.round((state.voicePeakMax || 0) * 0x7fff),
+    volume_gain: volumeGain(state.volume),
     // A context that is not running plays nothing and its worklet stops
     // reporting: the counters above are then its last values.
     audio_state: state.ctx ? state.ctx.state : undefined,
@@ -525,6 +543,7 @@ function sendPingPacket() {
   });
   if (ok) {
     pingTracker.sent();
+    state.voicePeakMax = 0;
   }
   return ok;
 }
@@ -1122,6 +1141,7 @@ async function refreshSpend() {
     const data = await r.json().catch(() => null);
     if (!data) return;
     $('spend-line').textContent = spendLine(data);
+    $('spend-line-main').textContent = spendLine(data);
     $('sp-today').textContent = spendTitle(data.today);
     $('sp-conv').textContent = spendTitle(data.conversation);
     $('sp-since').textContent = data.since ? new Date(data.since).toLocaleString() : '–';
@@ -1145,6 +1165,22 @@ function fillSelect(sel, values, current, label = (v) => v) {
     if (v === current) o.selected = true;
     sel.appendChild(o);
   }
+}
+
+// Volume: the boost on the voice's playback. Default "louder" (about
+// +10 dB): at the received level the voice was hard to hear on a phone.
+const VOLUME_GAIN = { normal: 1, loud: 2, louder: 3.2, max: 5 };
+const VOLUME_KEY = 'sheepdog.voice.volume';
+const VOLUME_DEFAULT = 'louder';
+function volumeGain(v) { return VOLUME_GAIN[v] || VOLUME_GAIN[VOLUME_DEFAULT]; }
+function loadVolume() {
+  try { const v = localStorage.getItem(VOLUME_KEY); if (v && VOLUME_GAIN[v]) return v; } catch (_) { /* storage blocked */ }
+  return VOLUME_DEFAULT;
+}
+function setVolume(v) {
+  state.volume = VOLUME_GAIN[v] ? v : VOLUME_DEFAULT;
+  try { localStorage.setItem(VOLUME_KEY, state.volume); } catch (_) { /* storage blocked */ }
+  if (state.volumeNode && state.ctx) state.volumeNode.gain.setTargetAtTime(volumeGain(state.volume), state.ctx.currentTime, 0.05);
 }
 
 // Speeds are a pacing request in the voice's instructions (GPT-Live has
@@ -1336,6 +1372,34 @@ async function init() {
   });
   $('file-loop').addEventListener('change', (e) => {
     if (state.fileSource) state.fileSource.loop = e.target.checked;
+  });
+
+  state.volume = loadVolume();
+  $('set-volume').value = state.volume;
+  $('set-volume').addEventListener('change', (e) => setVolume(e.target.value));
+
+  // View: driving (big mic, transcript fills the screen, questions folded
+  // below) or normal (the earlier layout: open questions above a shorter
+  // transcript, regular buttons, the cost line). One tap on the car button
+  // flips it; kept per browser.
+  const VIEW_KEY = 'sheepdog.voice.view';
+  const applyView = (view) => {
+    const driving = view !== 'normal';
+    document.body.classList.toggle('view-normal', !driving);
+    const b = $('btn-view');
+    b.setAttribute('aria-pressed', String(driving));
+    const t = driving ? 'Driving view is on. Tap for the normal view' : 'Normal view is on. Tap for the driving view';
+    b.title = t;
+    b.setAttribute('aria-label', t);
+    $('asks').open = !driving;
+  };
+  let view = 'driving';
+  try { if (localStorage.getItem(VIEW_KEY) === 'normal') view = 'normal'; } catch (_) { /* storage blocked */ }
+  applyView(view);
+  $('btn-view').addEventListener('click', () => {
+    view = view === 'normal' ? 'driving' : 'normal';
+    try { localStorage.setItem(VIEW_KEY, view); } catch (_) { /* storage blocked */ }
+    applyView(view);
   });
 
   // Settings: a dialog opened from the gear in the header.

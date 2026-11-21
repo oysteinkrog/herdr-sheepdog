@@ -721,6 +721,8 @@ type client struct {
 	// stretched_ms).
 	rate        float64
 	stretchedMs int
+	voicePeak   int     // loudest voice sample played since the last stats line (ping voice_peak)
+	volumeGain  float64 // the page's volume boost (ping volume_gain)
 	// playbackAt is when a ping last carried the playback counters: the
 	// page pings every few seconds while statsLoop logs on its own
 	// interval, so web.client.stats reports their age (playback_age_ms)
@@ -1103,6 +1105,12 @@ func (c *client) onControl(data []byte) {
 		if m.StretchedMs != nil {
 			c.stretchedMs = *m.StretchedMs
 		}
+		if m.VoicePeak != nil && *m.VoicePeak > c.voicePeak {
+			c.voicePeak = *m.VoicePeak
+		}
+		if m.VolumeGain != nil {
+			c.volumeGain = *m.VolumeGain
+		}
 		if m.BufferMs != nil {
 			c.playbackAt = c.h.s.deps.Now()
 		}
@@ -1205,6 +1213,7 @@ func (c *client) counters() map[string]any {
 		"playback_reports": c.playbackReports,
 		"underruns":        c.underruns, "drains": c.drains, "buffer_ms": c.bufferMs,
 		"rate": c.rate, "stretched_ms": c.stretchedMs,
+		"voice_peak": c.voicePeak, "volume_gain": c.volumeGain,
 		"send_wait_max_ms": round1(maxWait), "send_wait_p95_ms": round1(p95Wait),
 		"dur_ms": now.Sub(c.start).Milliseconds(),
 	}

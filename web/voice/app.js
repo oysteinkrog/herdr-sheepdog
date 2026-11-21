@@ -31,7 +31,8 @@ const TRANSCRIPT_LINES = 8;
 const BUNDLED_FIXTURE = '/testdata/question.wav';
 
 const state = {
-  speaker: 'loud', // loud or call (Settings, Sound); set from storage at start
+  speaker: 'talk', // talk, loud or call (Settings, Sound); set from storage at start
+  echo: null, // the page's own echo canceller's last stats (talk mode)
   ducked: false,
   duckTimer: null,
   ctx: null,
@@ -141,9 +142,11 @@ async function ensureAudio() {
   state.playbackPolicySent = false;
   if (state.playbackProvider) setPlaybackPolicy(state.playbackProvider);
 
+  // Input 0 is the mic, input 1 what the speaker plays: talk mode's echo
+  // canceller (echo.js) removes the voice from the mic with it.
   const capture = new AudioWorkletNode(ctx, 'sheepdog-capture', {
-    numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
-    processorOptions: { muted: state.muted, gate: state.gate.opts },
+    numberOfInputs: 2, numberOfOutputs: 1, outputChannelCount: [1],
+    processorOptions: { muted: state.muted, gate: state.gate.opts, echo: state.speaker === 'talk' },
   });
   capture.port.onmessage = (e) => onCaptureMessage(e.data);
   // A worklet is only rendered while it is connected to the destination;
@@ -151,6 +154,7 @@ async function ensureAudio() {
   const sink = ctx.createGain();
   sink.gain.value = 0;
   capture.connect(sink).connect(ctx.destination);
+  limiter.connect(capture, 0, 1);
   state.captureNode = capture;
 
   ctx.onstatechange = () => render();
@@ -169,6 +173,11 @@ function rttNow() {
 function onCaptureMessage(m) {
   if (m.type === 'level') {
     state.level = m;
+    return;
+  }
+  if (m.type === 'echo') {
+    if (state.echo && m.bargeIns > state.echo.bargeIns) console.log(`[voice] talk-over heard (echo delay ${m.delayMs} ms, ${m.erleDb} dB removed)`);
+    state.echo = m;
     return;
   }
   if (m.type === 'silence') {
@@ -284,7 +293,12 @@ async function startSource() {
       // the voice plays at media volume, and the page ducks the mic
       // while the voice speaks (setDuck) so the model does not hear
       // itself. Call mode keeps echo cancellation and talking over it.
-      audio: { channelCount: 1, echoCancellation: state.speaker !== 'loud', noiseSuppression: true, autoGainControl: state.speaker !== 'loud' },
+      // Talk mode also opens it without echo cancellation (media volume)
+      // and with no other processing either: the page's own echo
+      // canceller (echo.js) needs the mic signal unaltered.
+      audio: state.speaker === 'call'
+        ? { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        : { channelCount: 1, echoCancellation: false, noiseSuppression: state.speaker === 'loud', autoGainControl: false },
     });
     state.micStream = stream;
     state.micSource = ctx.createMediaStreamSource(stream);
@@ -330,9 +344,10 @@ function checkEchoCancellation(track) {
   let settings;
   try { settings = track && track.getSettings ? track.getSettings() : undefined; } catch (_) { settings = undefined; }
   state.aec = aecStatus(settings);
-  // Loudspeaker mode turns echo cancellation off on purpose and ducks the
-  // mic instead, so no warning then.
-  const warn = state.speaker !== 'loud' && aecWarn(state.aec, isMobile(navigator.userAgent, navigator.maxTouchPoints || 0));
+  // Talk and Loudspeaker modes turn the browser's echo cancellation off on
+  // purpose (the page cancels the echo itself, or ducks the mic), so no
+  // warning then.
+  const warn = state.speaker === 'call' && aecWarn(state.aec, isMobile(navigator.userAgent, navigator.maxTouchPoints || 0));
   const el = $('aec-hint');
   el.textContent = AEC_HINT;
   el.classList.toggle('hidden', !warn);
@@ -578,6 +593,11 @@ function sendPingPacket() {
     // reporting: the counters above are then its last values.
     audio_state: state.ctx ? state.ctx.state : undefined,
     aec: state.aec,
+    // Talk mode's own echo canceller: the speaker-to-mic delay it found,
+    // how much echo it removes, and how often the user talked over the voice.
+    echo_delay_ms: state.echo && state.speaker === 'talk' ? state.echo.delayMs : undefined,
+    echo_erle_db: state.echo && state.speaker === 'talk' ? state.echo.erleDb : undefined,
+    barge_ins: state.echo && state.speaker === 'talk' ? state.echo.bargeIns : undefined,
   });
   if (ok) {
     pingTracker.sent();
@@ -860,7 +880,7 @@ function render() {
   // Before connecting, the big mic button (Start) connects; this button
   // appears once connected, as Disconnect.
   btnConnect.classList.toggle('hidden', !connected);
-  $('connect-label').textContent = connected ? 'Disconnect' : 'Connect';
+  $('connect-label').textContent = connected ? 'Hang up' : 'Connect'; // short: four buttons share one row on a phone
   btnConnect.setAttribute('aria-label', connected ? 'Disconnect' : 'Connect');
   btnConnect.title = connected ? 'Disconnect from sheepdog' : 'Connect to sheepdog';
   // The big mic button: Start before connecting, then mic on or off.
@@ -1412,12 +1432,15 @@ async function init() {
     if (state.fileSource) state.fileSource.loop = e.target.checked;
   });
 
-  // Speaker mode: loud (default) or call. A change reopens the mic.
-  const SPEAKER_KEY = 'sheepdog.voice.speaker';
-  try { state.speaker = localStorage.getItem(SPEAKER_KEY) === 'call' ? 'call' : 'loud'; } catch (_) { state.speaker = 'loud'; }
+  // Speaker mode: talk (default), loud or call. A change reopens the mic.
+  // A new key, so the new talk mode is the default for everyone once.
+  const SPEAKER_KEY = 'sheepdog.voice.speakerMode';
+  const speakerOf = (v) => (v === 'call' || v === 'loud' ? v : 'talk');
+  try { state.speaker = speakerOf(localStorage.getItem(SPEAKER_KEY)); } catch (_) { state.speaker = 'talk'; }
   $('set-speaker').value = state.speaker;
   $('set-speaker').addEventListener('change', (e) => {
-    state.speaker = e.target.value === 'call' ? 'call' : 'loud';
+    state.speaker = speakerOf(e.target.value);
+    if (state.captureNode) state.captureNode.port.postMessage({ type: 'echo', on: state.speaker === 'talk' });
     try { localStorage.setItem(SPEAKER_KEY, state.speaker); } catch (_) { /* storage blocked */ }
     updateDuck();
     if (state.micStream) startSource().catch((err) => console.log(`[voice] mic reopen failed: ${err.message}`));
@@ -1426,6 +1449,31 @@ async function init() {
   state.volume = loadVolume();
   $('set-volume').value = state.volume;
   $('set-volume').addEventListener('change', (e) => setVolume(e.target.value));
+
+  // Display tweaks (Settings, Display): transcript text size, line spacing,
+  // bold text, and whether the mic level meter shows. Kept per browser.
+  const DISPLAY_KEY = 'sheepdog.voice.display';
+  const TEXT_SIZE = { small: '.95rem', normal: '1.1rem', large: '1.35rem', huge: '1.7rem' };
+  const LINE_SPACING = { tight: '1.25', normal: '1.5', loose: '1.8' };
+  let display = { size: 'normal', line: 'normal', bold: false, meter: true };
+  try { display = { ...display, ...JSON.parse(localStorage.getItem(DISPLAY_KEY) || '{}') }; } catch (_) { /* storage blocked or bad JSON */ }
+  const applyDisplay = () => {
+    const root = document.documentElement.style;
+    root.setProperty('--tx-size', TEXT_SIZE[display.size] || TEXT_SIZE.normal);
+    root.setProperty('--tx-line', LINE_SPACING[display.line] || LINE_SPACING.normal);
+    root.setProperty('--tx-weight', display.bold ? '600' : '400');
+    document.body.classList.toggle('no-meter', !display.meter);
+    try { localStorage.setItem(DISPLAY_KEY, JSON.stringify(display)); } catch (_) { /* storage blocked */ }
+  };
+  $('set-text-size').value = TEXT_SIZE[display.size] ? display.size : 'normal';
+  $('set-line-spacing').value = LINE_SPACING[display.line] ? display.line : 'normal';
+  $('set-bold').checked = !!display.bold;
+  $('set-meter').checked = display.meter !== false;
+  $('set-text-size').addEventListener('change', (e) => { display.size = e.target.value; applyDisplay(); });
+  $('set-line-spacing').addEventListener('change', (e) => { display.line = e.target.value; applyDisplay(); });
+  $('set-bold').addEventListener('change', (e) => { display.bold = e.target.checked; applyDisplay(); });
+  $('set-meter').addEventListener('change', (e) => { display.meter = e.target.checked; applyDisplay(); });
+  applyDisplay();
 
   // View: driving (big mic, transcript fills the screen, questions folded
   // below) or normal (the earlier layout: open questions above a shorter

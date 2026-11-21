@@ -41,11 +41,11 @@
 
 <main id="app-main">
   <section class="card controls">
+    <div class="button-row">
     <button id="btn-mute" class="mic-btn" type="button" title="M" aria-pressed="false">
       <svg class="mic-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><path d="M12 18v4"/><path class="mic-slash" d="M3 3l18 18"/></svg>
       <span id="mic-label">Start</span>
     </button>
-    <div class="icon-buttons">
       <button id="btn-connect" class="icon-btn hidden" type="button" aria-label="Connect"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6"/><path d="M15 2v6"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v5"/></svg><span id="connect-label">Connect</span></button>
       <button id="btn-stop" class="icon-btn danger" type="button" disabled title="Stop talking (Space / Esc)" aria-label="Stop talking"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg><span>Stop</span></button>
       <button id="btn-new-conversation" class="icon-btn" type="button" title="New conversation: clear the conversation with the voice and the orchestrator. The agents, promises, notes and open questions stay." aria-label="New conversation"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span>New</span></button>
@@ -115,8 +115,9 @@
     <div class="settings-fields">
       <label>Speaker
         <select id="set-speaker">
-          <option value="loud">Loudspeaker: loud, the mic pauses while the assistant talks (default)</option>
-          <option value="call">Call: quieter, you can talk over the assistant</option>
+          <option value="talk">Loud, talk over it (default)</option>
+          <option value="loud">Loud, the mic pauses while it talks</option>
+          <option value="call">Call: quieter, the phone's own echo cancelling</option>
         </select>
       </label>
       <label>Volume
@@ -128,7 +129,30 @@
         </select>
       </label>
     </div>
-    <p class="muted small">Loudspeaker plays the voice at the phone's media volume. To stop the assistant mid-sentence, tap Stop. Call mode plays at the quieter call volume. Volume changes at once; Speaker reopens the microphone.</p>
+    <p class="muted small">Both Loud modes play the voice at the phone's media volume. "Talk over it" removes the assistant's voice from the mic itself, so you can interrupt by talking; if it cuts itself off, pick "the mic pauses" and tap Stop to interrupt. Call mode plays at the quieter call volume. Volume changes at once; Speaker reopens the microphone.</p>
+  </section>
+
+  <section class="settings-section">
+    <h2>Display</h2>
+    <div class="settings-fields">
+      <label>Text size
+        <select id="set-text-size">
+          <option value="small">Small</option>
+          <option value="normal">Normal (default)</option>
+          <option value="large">Large</option>
+          <option value="huge">Very large</option>
+        </select>
+      </label>
+      <label>Line spacing
+        <select id="set-line-spacing">
+          <option value="tight">Tight</option>
+          <option value="normal">Normal (default)</option>
+          <option value="loose">Loose</option>
+        </select>
+      </label>
+    </div>
+    <label class="switch-row"><input type="checkbox" id="set-bold"> Bold transcript text</label>
+    <label class="switch-row"><input type="checkbox" id="set-meter" checked> Show the mic level meter</label>
   </section>
 
   <section class="settings-section">

@@ -721,8 +721,11 @@ type client struct {
 	// stretched_ms).
 	rate        float64
 	stretchedMs int
-	voicePeak   int     // loudest voice sample played since the last stats line (ping voice_peak)
-	volumeGain  float64 // the page's volume boost (ping volume_gain)
+	voicePeak   int      // loudest voice sample played since the last stats line (ping voice_peak)
+	volumeGain  float64  // the page's volume boost (ping volume_gain)
+	echoDelayMs *int     // talk mode's speaker-to-mic delay (ping echo_delay_ms)
+	echoErleDb  *float64 // talk mode's echo removed, dB (ping echo_erle_db)
+	bargeIns    *int     // talk-overs heard by the page (ping barge_ins)
 	// playbackAt is when a ping last carried the playback counters: the
 	// page pings every few seconds while statsLoop logs on its own
 	// interval, so web.client.stats reports their age (playback_age_ms)
@@ -1111,6 +1114,15 @@ func (c *client) onControl(data []byte) {
 		if m.VolumeGain != nil {
 			c.volumeGain = *m.VolumeGain
 		}
+		if m.EchoDelayMs != nil {
+			c.echoDelayMs = m.EchoDelayMs
+		}
+		if m.EchoErleDb != nil {
+			c.echoErleDb = m.EchoErleDb
+		}
+		if m.BargeIns != nil {
+			c.bargeIns = m.BargeIns
+		}
 		if m.BufferMs != nil {
 			c.playbackAt = c.h.s.deps.Now()
 		}
@@ -1219,6 +1231,15 @@ func (c *client) counters() map[string]any {
 	}
 	// Absent until the first ping with playback counters: the zeros
 	// above are then placeholders, not a measurement.
+	if c.echoDelayMs != nil {
+		out["echo_delay_ms"] = *c.echoDelayMs
+	}
+	if c.echoErleDb != nil {
+		out["echo_erle_db"] = *c.echoErleDb
+	}
+	if c.bargeIns != nil {
+		out["barge_ins"] = *c.bargeIns
+	}
 	if !c.playbackAt.IsZero() {
 		out["playback_age_ms"] = now.Sub(c.playbackAt).Milliseconds()
 	}

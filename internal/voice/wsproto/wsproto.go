@@ -303,6 +303,13 @@ type Message struct {
 	// VolumeGain is the boost the page applies.
 	VoicePeak  *int     `json:"voice_peak,omitempty"`
 	VolumeGain *float64 `json:"volume_gain,omitempty"`
+	// EchoDelayMs, EchoErleDb and BargeIns come from the page's own echo
+	// canceller (talk mode): the speaker-to-mic delay it found (-1 before
+	// it finds one), the echo it removes in dB, and how often the user
+	// talked over the voice since the page loaded.
+	EchoDelayMs *int     `json:"echo_delay_ms,omitempty"`
+	EchoErleDb  *float64 `json:"echo_erle_db,omitempty"`
+	BargeIns    *int     `json:"barge_ins,omitempty"`
 	// AudioState is the page's AudioContext state ("running",
 	// "suspended", "interrupted", "closed"): a context that is not
 	// running plays nothing, and its worklet stops reporting, so the

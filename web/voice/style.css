@@ -65,7 +65,7 @@ input[type=file] { max-width: 100%; }
 .hint { color: var(--warn); border: 1px solid var(--warn); border-radius: 4px; padding: .4rem .6rem; margin: .4rem 0 0; }
 .error { color: var(--danger); background: var(--danger-bg); border: 1px solid var(--danger-line); border-radius: 4px; padding: .4rem .6rem; margin: .4rem 0 0; white-space: pre-wrap; }
 
-.transcript { overflow: auto; font-size: 1.1rem; line-height: 1.5; }
+.transcript { overflow: auto; font-size: var(--tx-size, 1.1rem); line-height: var(--tx-line, 1.5); font-weight: var(--tx-weight, 400); }
 .transcript p { margin: .2rem 0; }
 .transcript .line { display: grid; grid-template-columns: 2.4em minmax(0, 1fr); gap: .5em; padding: .15rem 0; border-bottom: 1px solid var(--line); }
 .transcript .line:last-child { border-bottom: none; }
@@ -150,10 +150,13 @@ main#app-main { height: calc(100dvh - 3.6rem); min-height: 28rem; }
 .mic-btn .mic-slash { display: none; }
 .mic-btn[data-state="off"] .mic-slash { display: inline; }
 
-.icon-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: .4rem; margin: .4rem 0 0; }
+/* One row: the mic button takes the most room, the others share the rest. */
+.button-row { display: flex; align-items: stretch; gap: .4rem; }
+.button-row .mic-btn { flex: 1.6 1 0; width: auto; min-width: 0; padding: .25rem .4rem; gap: .4rem; }
+.button-row .icon-btn { flex: 1 1 0; min-width: 0; }
 .icon-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .1rem;
-  min-height: 3.2rem; padding: .25rem; font-size: .85rem; }
-.icon-btn span { line-height: 1.1; }
+  min-height: 3.8rem; padding: .25rem .15rem; font-size: .78rem; }
+.icon-btn span { line-height: 1.1; overflow-wrap: anywhere; }
 
 .settings-btn { display: inline-flex; align-items: center; justify-content: center; width: 3rem; height: 3rem; padding: 0; border-radius: 50%; }
 
@@ -197,10 +200,12 @@ body.view-normal main#app-main { height: auto; min-height: 0; }
 body.view-normal .controls { order: 0; }
 body.view-normal .asks { order: 1; max-height: none; }
 body.view-normal .transcript-card { order: 2; flex: none; }
-body.view-normal .transcript-card .transcript { max-height: 16rem; font-size: .95em; }
+body.view-normal .transcript-card .transcript { max-height: 16rem; font-size: calc(var(--tx-size, 1.1rem) * .87); }
 body.view-normal main#app-main > section.card:not(.controls):not(.transcript-card) { order: 3; }
 body.view-normal .mic-btn { min-height: 2.6rem; font-size: 1rem; }
 body.view-normal .mic-btn svg { width: 20px; height: 20px; }
 body.view-normal .icon-btn { min-height: 2.6rem; flex-direction: row; gap: .35rem; }
 body.view-normal .icon-btn svg { width: 18px; height: 18px; }
 body.view-normal #spend-line-main { display: block; }
+
+body.no-meter .meter-row { display: none; }

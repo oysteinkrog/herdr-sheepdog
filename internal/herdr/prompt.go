@@ -59,6 +59,10 @@ var (
 	// reRecommended is the marker an agent puts after the option it
 	// recommends: Claude Code's AskUserQuestion asks for "(Recommended)"
 	// at the end of the label, and a model writing Chinese translates it.
+	// reCheckbox is the box a multi-select AskUserQuestion draws before
+	// each label ("[ ] Alpha", "[✔] Bravo"): ticking one does not answer,
+	// a separate Submit row below the options does.
+	reCheckbox    = regexp.MustCompile(`^\[([ ✔✓xX×])\]\s+(.+)$`)
 	reRecommended = regexp.MustCompile(`(?i)^(.*?)\s*[(（]\s*(recommended|推荐|推薦)\s*[)）]$`)
 )
 
@@ -107,6 +111,8 @@ type Option struct {
 	// it); Title is the label without it, set only when Recommended.
 	Recommended bool
 	Title       string
+	// Checked is the box state of a multi-select option (Prompt.MultiSelect).
+	Checked bool
 }
 
 // Prompt is a worker's approval prompt, as parsed from its screen.
@@ -132,6 +138,12 @@ type Prompt struct {
 	// whose label starts with "No".
 	YesKeys []string
 	NoKeys  []string
+	// MultiSelect marks Claude Code's multi-select question: each option
+	// has a box (Option.Checked) that its digit ticks or unticks, and the
+	// answer goes in only from the Submit row under the options (cursor
+	// down to it, enter, then enter on the "Review your answers" screen).
+	// YesKeys and NoKeys stay empty: one key never answers it.
+	MultiSelect bool
 }
 
 // Answers are the options that answer the question: Options without the
@@ -180,6 +192,21 @@ func ParsePrompt(screen string) (Prompt, bool) {
 			opts[i].Keys = navKeys(i - cursor)
 		}
 	}
+	multi := false
+	for i, o := range opts {
+		m := reCheckbox.FindStringSubmatch(o.Label)
+		if m == nil {
+			continue
+		}
+		multi = true
+		n := option(o.Number, m[2])
+		n.Keys, n.Description, n.Checked = o.Keys, o.Description, m[1] != " "
+		opts[i] = n
+	}
+	if multi && len(opts) > 0 && strings.EqualFold(strings.TrimSpace(opts[len(opts)-1].Description), "submit") {
+		// The Submit row is read as the last option's description.
+		opts[len(opts)-1].Description = ""
+	}
 	// "Chat about this" is dropped; "Type something." is kept but marked.
 	kept, def := make([]Option, 0, len(opts)), -1
 	for i, o := range opts {
@@ -193,14 +220,14 @@ func ParsePrompt(screen string) (Prompt, bool) {
 		kept = append(kept, o)
 	}
 	opts = kept
-	p := Prompt{Options: opts, Default: def}
+	p := Prompt{Options: opts, Default: def, MultiSelect: multi}
 	p.Question, p.Command, p.Reason = above(lines[:first])
 	if p.Command == "" {
 		// shortcut: commands taller than the screen read lose their header and parse as empty, widen ReadLines or scroll blocked hc reads if needed
 		p.Command, p.Reason = claudeCommand(all[:len(all)-len(lines)+first])
 	}
 	for _, o := range opts {
-		if o.Meta {
+		if o.Meta || multi {
 			continue
 		}
 		label := strings.ToLower(o.Label)
@@ -211,7 +238,7 @@ func ParsePrompt(screen string) (Prompt, bool) {
 			p.NoKeys = o.Keys
 		}
 	}
-	if len(p.YesKeys) == 0 && p.Default >= 0 && !opts[p.Default].Meta {
+	if len(p.YesKeys) == 0 && !multi && p.Default >= 0 && !opts[p.Default].Meta {
 		p.YesKeys = opts[p.Default].Keys
 	}
 	return p, true

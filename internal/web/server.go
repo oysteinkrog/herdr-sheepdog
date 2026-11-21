@@ -48,6 +48,9 @@ type Supervisor interface {
 	ShepherdInput(kind supervisor.InputKind, text string)
 	TypedTurn(ctx context.Context) (supervisor.TypedReply, error)
 	AnswerTap(ctx context.Context, id string, option int) (voice.ToolResult, error)
+	// AnswerChoices backs POST /api/pending/answer with "options" (a
+	// multi-select's ticked options, then Submit) or "dismiss" (esc).
+	AnswerChoices(ctx context.Context, id string, options []int, dismiss bool) (voice.ToolResult, error)
 	// ConversationStartedAt and ResetConversation back GET /api/state's
 	// conversation_started_at and POST /api/conversation/reset ("New
 	// conversation", docs/dev/roles.md).

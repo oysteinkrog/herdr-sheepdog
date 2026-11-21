@@ -33,6 +33,7 @@ func (s *Supervisor) newAnswerPrompt(paneID string, prompt herdr.Prompt, alias s
 		Question:      s.cfg.Redactor.String(prompt.Phrase()),
 		Command:       s.cfg.Redactor.String(prompt.Command),
 		YesKeys:       append([]string(nil), prompt.YesKeys...),
+		MultiSelect:   prompt.MultiSelect,
 		NoKeys:        append([]string(nil), prompt.NoKeys...),
 		// No ExpiresAt: an answer_prompt lives while the pane is
 		// blocked at this prompt (checkOpenPrompt), not on a clock.
@@ -40,7 +41,7 @@ func (s *Supervisor) newAnswerPrompt(paneID string, prompt herdr.Prompt, alias s
 	}
 	for i, o := range prompt.Options {
 		p.Options = append(p.Options, state.Option{Label: s.cfg.Redactor.String(o.Label), Keys: o.Keys, Default: i == prompt.Default, Meta: o.Meta,
-			Description: s.cfg.Redactor.String(o.Description), Recommended: o.Recommended, Title: s.cfg.Redactor.String(o.Title)})
+			Description: s.cfg.Redactor.String(o.Description), Recommended: o.Recommended, Title: s.cfg.Redactor.String(o.Title), Checked: o.Checked})
 	}
 	// Remembered so the post-answer poll and the reconciler can tell a
 	// new prompt from this one (docs/dev/roles.md "blocked -> blocked is a

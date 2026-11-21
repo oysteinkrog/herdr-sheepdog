@@ -1113,14 +1113,15 @@ async function pairHere(pairing, deps, gate) {
 // ---------------------------------------------------------------- approvals, state & reload
 
 const approvals = createApprovals({
-  postAnswer: async (id, option, idempotencyKey) => {
+  postAnswer: async (id, option, idempotencyKey, extra) => {
     const r = await authedFetch('/api/pending/answer', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Idempotency-Key': idempotencyKey,
       },
-      body: JSON.stringify({ id, option }),
+      // extra: { options } for a multi-select's Submit, { dismiss } for Esc.
+      body: JSON.stringify(extra ? { id, ...extra } : { id, option }),
     });
     const body = await r.json().catch(() => ({}));
     return { status: r.status, body };
@@ -1163,7 +1164,7 @@ function renderApprovals() {
   const cards = approvals.cards(state.appState);
   const waiting = openQuestions(state.appState).length;
   document.title = pageTitle(waiting);
-  const html = renderApprovalCardsHTML(cards, approvals.busy());
+  const html = renderApprovalCardsHTML(cards, approvals.busy(), approvals.ticked);
   if (box.dataset.key !== html) {
     box.dataset.key = html;
     box.innerHTML = html; // approvals.js escapes all fields
@@ -1392,6 +1393,8 @@ async function init() {
     const id = btn.dataset.pendingId;
     const optIdx = Number(btn.dataset.optionIndex);
     const card = approvals.cards(state.appState).find((c) => c.pending && c.pending.id === id);
+    if (card && btn.dataset.action === 'submit') return void approvals.submit(card.pending);
+    if (card && btn.dataset.action === 'dismiss') return void approvals.dismiss(card.pending);
     const opt = card && card.pending && (card.pending.options || []).find((o) => o.index === optIdx);
     if (card && opt) approvals.answer(card.pending, opt);
   });

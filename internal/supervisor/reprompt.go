@@ -294,17 +294,25 @@ func (s *Supervisor) checkQuestion(ctx context.Context, row state.Agent, q state
 // same way). known is false when the screen could not be read: nothing is
 // decided then. Call it without s.mu: it reads herdr.
 func (s *Supervisor) stillAsking(ctx context.Context, p state.PendingAction) (asking, known bool) {
+	_, asking, known = s.stillAskingPrompt(ctx, p)
+	return asking, known
+}
+
+// stillAskingPrompt is stillAsking that also returns the prompt as the
+// screen shows it now (a multi-select's boxes and cursor change while it
+// stays the same question).
+func (s *Supervisor) stillAskingPrompt(ctx context.Context, p state.PendingAction) (prompt herdr.Prompt, asking, known bool) {
 	row, ok := s.store.Get(p.PaneID)
 	if !ok || row.State == herdr.StateWorking {
-		return false, true
+		return herdr.Prompt{}, false, true
 	}
 	read, err := s.herdr.Read(ctx, p.PaneID, herdr.SourceRecentUnwrapped, s.cfg.ReadLines)
 	if err != nil {
 		s.log.Log(logSource, "supervisor.reconcile_error", p.PaneID, map[string]any{"error": err.Error(), "for": "tap"})
-		return false, false
+		return herdr.Prompt{}, false, false
 	}
 	prompt, parsed := herdr.ParsePrompt(read.Text)
-	return parsed && s.promptSignature(prompt) == pendingSignature(p), true
+	return prompt, parsed && s.promptSignature(prompt) == pendingSignature(p), true
 }
 
 // claimPrompt atomically compares sig against s.lastPrompt[paneID] and,

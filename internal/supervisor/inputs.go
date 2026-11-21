@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
+	"github.com/kccarlos/herdr-sheepdog/internal/herdr"
 	"github.com/kccarlos/herdr-sheepdog/internal/state"
 	"github.com/kccarlos/herdr-sheepdog/internal/voice"
 )
@@ -581,6 +583,144 @@ func (s *Supervisor) railBlockedLocked(p state.PendingAction, keys []string, via
 // nothing and keeps it (ErrNotSent). A pane herdr reports done or idle at
 // its prompt (agy, a finish that asks, a menu) answers as any other.
 func (s *Supervisor) AnswerTap(ctx context.Context, id string, option int) (voice.ToolResult, error) {
+	return s.tapAnswer(ctx, id, map[string]any{"option": option}, func(p state.PendingAction, _ herdr.Prompt) ([]string, string, error) {
+		if option < 1 || option > len(p.Options) || p.Options[option-1].Meta {
+			return nil, "", fmt.Errorf("%w: %d (the question has %d)", ErrNoSuchOption, option, len(p.Options))
+		}
+		if p.MultiSelect {
+			// One digit only ticks a box: the answer goes in from Submit.
+			return s.multiSelectKeys(p, nil, []int{option})
+		}
+		o := p.Options[option-1]
+		return o.Keys, o.Label, nil
+	})
+}
+
+// AnswerChoices answers a multi-select question with the options the
+// user ticked on the phone (1-based, as in PendingOptions) and submits
+// it; dismiss instead presses esc, which closes any question (Claude
+// Code then tells the agent the user declined to answer). Everything else
+// is AnswerTap's: the same rail, the same fresh screen check.
+func (s *Supervisor) AnswerChoices(ctx context.Context, id string, options []int, dismiss bool) (voice.ToolResult, error) {
+	extra := map[string]any{"options": options, "dismiss": dismiss}
+	return s.tapAnswer(ctx, id, extra, func(p state.PendingAction, fresh herdr.Prompt) ([]string, string, error) {
+		if dismiss {
+			return []string{"esc"}, dismissedLabel, nil
+		}
+		if !p.MultiSelect {
+			if len(options) != 1 {
+				return nil, "", fmt.Errorf("%w: this question takes one option", ErrNoSuchOption)
+			}
+			o := options[0]
+			if o < 1 || o > len(p.Options) || p.Options[o-1].Meta {
+				return nil, "", fmt.Errorf("%w: %d (the question has %d)", ErrNoSuchOption, o, len(p.Options))
+			}
+			return p.Options[o-1].Keys, p.Options[o-1].Label, nil
+		}
+		return s.multiSelectKeys(p, &fresh, options)
+	})
+}
+
+// multiSelectKeys are the keys that make a multi-select's boxes match
+// want and submit it: the digit of each option whose box must change
+// ("Type something" is always left unticked, it is not an answer), the
+// cursor down to the Submit row under the options, and enter. The boxes
+// and the cursor are read from fresh, the screen as it is now (nil: as
+// the question was first read). The "Review your answers" screen that
+// follows gets its own enter (confirmReview).
+func (s *Supervisor) multiSelectKeys(p state.PendingAction, fresh *herdr.Prompt, want []int) ([]string, string, error) {
+	opts := p.Options
+	cursor := -1
+	for i, o := range p.Options {
+		if o.Default {
+			cursor = i
+		}
+	}
+	if fresh != nil && len(fresh.Options) == len(p.Options) {
+		cursor = fresh.Default
+		opts = make([]state.Option, len(p.Options))
+		copy(opts, p.Options)
+		for i := range opts {
+			opts[i].Checked = fresh.Options[i].Checked
+		}
+	}
+	wanted := map[int]bool{}
+	var labels []string
+	for _, n := range want {
+		if n < 1 || n > len(opts) || opts[n-1].Meta {
+			return nil, "", fmt.Errorf("%w: %d (the question has %d)", ErrNoSuchOption, n, len(opts))
+		}
+		if !wanted[n] {
+			wanted[n] = true
+			labels = append(labels, strings.TrimRight(opts[n-1].Label, "."))
+		}
+	}
+	if len(wanted) == 0 {
+		return nil, "", fmt.Errorf("%w: tick at least one option, or dismiss the question", ErrNoSuchOption)
+	}
+	if cursor < 0 {
+		cursor = 0
+	}
+	var keys []string
+	for i, o := range opts {
+		if o.Checked != wanted[i+1] {
+			keys = append(keys, strconv.Itoa(i+1))
+		}
+	}
+	for i := cursor; i < len(opts); i++ {
+		keys = append(keys, "down")
+	}
+	keys = append(keys, "enter")
+	return keys, strings.Join(labels, ", "), nil
+}
+
+// confirmReview presses enter on the "Review your answers" screen a
+// multi-select's Submit opens, when it is there within a couple of
+// seconds; any other screen (the next question of a form, or the agent
+// already working) is left alone. Call it without s.mu.
+func (s *Supervisor) confirmReview(ctx context.Context, paneID string) bool {
+	for range 8 {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(250 * time.Millisecond):
+		}
+		read, err := s.herdr.Read(ctx, paneID, herdr.SourceRecentUnwrapped, s.cfg.ReadLines)
+		if err != nil {
+			return false
+		}
+		prompt, ok := herdr.ParsePrompt(read.Text)
+		if !ok || !strings.Contains(read.Text, "Review your answers") {
+			continue
+		}
+		if len(prompt.Options) == 0 || !strings.EqualFold(strings.TrimSpace(prompt.Options[0].Label), "submit answers") || prompt.Default != 0 {
+			return false
+		}
+		err = s.herdr.SendKeys(ctx, paneID, "enter")
+		s.log.Log(logSource, "pending.review_confirmed", paneID, map[string]any{"ok": err == nil})
+		return err == nil
+	}
+	return false
+}
+
+// tapAnswer is a tap's path from the phone to the pane, for AnswerTap
+// and AnswerChoices: pick turns the question, as stored and as the screen
+// shows it now, into the keys to send and the words that answer it.
+//
+// The tap is recorded as a user input first, so it passes the same rail
+// as a spoken answer; the keys go through the same executor (the
+// post-answer poll included), and the voice gets a silent line saying
+// what was tapped. id must name the open question, which lives as long as
+// its pane is at that prompt (pending.go, ExpirePending): anything else is
+// ErrPendingGone. It may be the question the voice is on or any other
+// open question (/api/state questions). The screen is read again first,
+// without s.mu (a slow herdr must not stall voice events and
+// transitions), so the keys never go into a question the tap was not
+// about: a working pane or a screen without that prompt ends the question
+// (ErrPendingGone); a failed read sends nothing and keeps it
+// (ErrNotSent). A pane herdr reports done or idle at its prompt (agy, a
+// finish that asks, a menu) answers as any other.
+func (s *Supervisor) tapAnswer(ctx context.Context, id string, extra map[string]any, pick func(p state.PendingAction, fresh herdr.Prompt) ([]string, string, error)) (voice.ToolResult, error) {
 	s.mu.Lock()
 	p, _, has := s.questionByID(id)
 	s.mu.Unlock()
@@ -603,8 +743,9 @@ func (s *Supervisor) AnswerTap(ctx context.Context, id string, option int) (voic
 	// answered as it is (the keys report any failure); every other is
 	// checked against the screen.
 	asking, known := true, true
+	var fresh herdr.Prompt
 	if !slot || exists {
-		asking, known = s.stillAsking(ctx, p)
+		fresh, asking, known = s.stillAskingPrompt(ctx, p)
 	}
 	s.mu.Lock()
 	cur, slot, has := s.questionByID(id)
@@ -628,28 +769,28 @@ func (s *Supervisor) AnswerTap(ctx context.Context, id string, option int) (voic
 		return voice.ToolResult{}, ErrPendingGone
 	}
 
-	if option < 1 || option > len(p.Options) || p.Options[option-1].Meta {
+	keys, label, err := pick(p, fresh)
+	if err != nil {
 		s.mu.Unlock()
-		return voice.ToolResult{}, fmt.Errorf("%w: %d (the question has %d)", ErrNoSuchOption, option, len(p.Options))
+		return voice.ToolResult{}, err
 	}
-	o := p.Options[option-1]
 	s.closeVoiceLocked()
 	zh := s.ceoChineseLocked()
-	s.addInputLocked(&shepherdInput{kind: InputTap, text: o.Label})
+	s.addInputLocked(&shepherdInput{kind: InputTap, text: label})
 	// The tap is answered here and now: it is not fresh input for a
 	// later to_supervisor call (the voice relaying the silent line below
 	// back, say).
 	s.relayedSeq = s.inputSeq
 	s.acceptedSeq++
-	in, reason := s.railInputLocked(p, o.Keys)
+	in, reason := s.railInputLocked(p, keys)
 	if reason != "" {
-		s.railBlockedLocked(p, o.Keys, "tap", reason)
+		s.railBlockedLocked(p, keys, "tap", reason)
 		s.mu.Unlock()
 		return voice.ToolResult{}, errors.New(reason)
 	}
 	in.used = true
 	alias := s.sayOf(p.PaneID)
-	res, sent := s.answerKeys(ctx, p, o.Keys, o.Label, func(l string) string { return toldLine(alias, l, zh) }, "tap", map[string]any{"option": option})
+	res, sent := s.answerKeys(ctx, p, keys, label, func(l string) string { return toldLine(alias, l, zh) }, "tap", extra)
 	if !sent {
 		in.used = false
 	}
@@ -657,9 +798,16 @@ func (s *Supervisor) AnswerTap(ctx context.Context, id string, option int) (voic
 	if !sent {
 		return res, ErrNotSent
 	}
-	s.push(p.PaneID, fmt.Sprintf("The user tapped %s on %s's question.", strings.TrimRight(o.Label, "."), alias), voice.UrgencySilent)
+	if p.MultiSelect && len(keys) > 0 && keys[len(keys)-1] == "enter" {
+		s.confirmReview(ctx, p.PaneID)
+	}
+	what := fmt.Sprintf("The user tapped %s on %s's question.", strings.TrimRight(label, "."), alias)
+	if label == dismissedLabel {
+		what = fmt.Sprintf("The user dismissed %s's question (esc).", alias)
+	}
+	s.push(p.PaneID, what, voice.UrgencySilent)
 	if s.brain != nil {
-		s.brain.Daemon(fmt.Sprintf("the user tapped %q on %s's question; %s", o.Label, alias, lowerFirst(res.Spoken)))
+		s.brain.Daemon(fmt.Sprintf("the user tapped %q on %s's question; %s", label, alias, lowerFirst(res.Spoken)))
 	}
 	return res, nil
 }
@@ -678,6 +826,8 @@ type PendingOption struct {
 	Description string   `json:"description,omitempty"`
 	Recommended bool     `json:"recommended,omitempty"`
 	Title       string   `json:"title,omitempty"`
+	// Checked is a multi-select option's box state when the question was read.
+	Checked bool `json:"checked,omitempty"`
 }
 
 // PendingOptions lists p's options for /api/state and pending.created.
@@ -688,7 +838,11 @@ func PendingOptions(p state.PendingAction) []PendingOption {
 			continue
 		}
 		out = append(out, PendingOption{Index: i + 1, Label: o.Label, Keys: append([]string{}, o.Keys...), Default: o.Default,
-			Description: o.Description, Recommended: o.Recommended, Title: o.Title})
+			Description: o.Description, Recommended: o.Recommended, Title: o.Title, Checked: o.Checked})
 	}
 	return out
 }
+
+// dismissedLabel is what a dismissed question was told ("Told docs no
+// answer, the question was closed.").
+const dismissedLabel = "no answer, the question was closed"

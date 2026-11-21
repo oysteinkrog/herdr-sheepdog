@@ -279,6 +279,10 @@ type PendingAction struct {
 	NoKeys   []string `json:"no_keys,omitempty"`
 	Held     bool     `json:"held,omitempty"`
 	Promoted bool     `json:"promoted,omitempty"`
+	// MultiSelect marks a multi-select question (herdr.Prompt.MultiSelect):
+	// it is answered with a set of options and a Submit
+	// (Supervisor.AnswerChoices), never with one option's keys.
+	MultiSelect bool `json:"multi_select,omitempty"`
 }
 
 // Option is one selectable choice of an answer_prompt action.
@@ -300,6 +304,9 @@ type Option struct {
 	// marker, and the label without it (herdr.Option).
 	Recommended bool   `json:"recommended,omitempty"`
 	Title       string `json:"title,omitempty"`
+	// Checked is a multi-select option's box state when the question was
+	// read (PendingAction.MultiSelect).
+	Checked bool `json:"checked,omitempty"`
 }
 
 // Note is one thing the user asked to be remembered (the orchestrator's note

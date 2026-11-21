@@ -29,6 +29,9 @@ export function summaryOf(q) {
 
 export const labelOf = (option) => (option && option.title && String(option.title).trim()) || (option && option.label) || '';
 
+/** A multi-select question: taps tick boxes, Submit sends them. */
+export const isMulti = (q) => Boolean(q && q.multi_select);
+
 export const askerOf = (q) => (q && q.agent && String(q.agent).trim()) || 'An agent';
 
 /** Generates an ASCII Idempotency-Key for POST /api/pending/answer. */
@@ -65,24 +68,65 @@ export function createApprovals({
   onChange = () => {},
 }) {
   let phases = {};
+  // Ticked options of each open multi-select question, by question id:
+  // a Set of option indexes, starting from the boxes the screen showed.
+  let ticks = {};
 
   const notify = () => onChange();
   const phaseOf = (id) => phases[id] || { phase: 'open', error: null };
   const busy = () => Object.values(phases).some((p) => p.phase === 'sending');
 
+  function ticked(q) {
+    if (!ticks[q.id]) ticks = { ...ticks, [q.id]: new Set((q.options || []).filter((o) => o.checked).map((o) => o.index)) };
+    return ticks[q.id];
+  }
+
+  /** A multi-select tap: tick or untick, nothing is sent. */
+  function toggle(q, option) {
+    if (!q || !option || phaseOf(q.id).phase !== 'open') return;
+    const set = new Set(ticked(q));
+    if (set.has(option.index)) set.delete(option.index);
+    else set.add(option.index);
+    ticks = { ...ticks, [q.id]: set };
+    notify();
+  }
+
+  /** Sends a multi-select question's ticked options and submits it. */
+  function submit(q) {
+    if (!q || !isMulti(q)) return Promise.resolve();
+    const set = ticked(q);
+    const chosen = (q.options || []).filter((o) => set.has(o.index));
+    if (chosen.length === 0) return Promise.resolve();
+    return send(q, { options: chosen.map((o) => o.index) }, null, `You chose ${chosen.map(labelOf).join(', ')}`);
+  }
+
+  /** Closes the question without an answer (esc on the agent's screen). */
+  function dismiss(q) {
+    return send(q, { dismiss: true }, null, 'You dismissed the question');
+  }
+
   async function answer(q, option) {
-    if (!q || !option || busy() || phaseOf(q.id).phase !== 'open') return;
-    phases = { ...phases, [q.id]: { phase: 'sending', option, pending: q, at: now() } };
+    if (isMulti(q)) {
+      toggle(q, option);
+      return;
+    }
+    if (!option) return;
+    return send(q, null, option, `You chose ${labelOf(option)}`);
+  }
+
+  async function send(q, extra, option, outcome) {
+    if (!q || busy() || phaseOf(q.id).phase !== 'open') return;
+    phases = { ...phases, [q.id]: { phase: 'sending', option, extra, pending: q, at: now() } };
     notify();
     try {
-      const res = await postAnswer(q.id, option.index, newKey());
+      const res = await postAnswer(q.id, option ? option.index : 0, newKey(), extra || undefined);
       if (res.status >= 200 && res.status < 300) {
         phases = {
           ...phases,
           [q.id]: {
             phase: 'answered',
             option,
-            outcome: `You chose ${labelOf(option)}`,
+            outcome,
             spoken: (res.body && res.body.spoken) || null,
             pending: q,
             at: now(),
@@ -118,16 +162,17 @@ export function createApprovals({
       if (p.phase === 'open') return ids.has(id);
       return ids.has(id) || t - p.at < LINGER_MS;
     });
+    for (const id of Object.keys(ticks)) if (!ids.has(id)) { const { [id]: _, ...rest } = ticks; ticks = rest; }
     if (kept.length === Object.keys(phases).length) return;
     phases = Object.fromEntries(kept);
     notify();
   }
 
-  return { answer, cards, prune, busy };
+  return { answer, toggle, submit, dismiss, ticked, cards, prune, busy };
 }
 
 /** Renders the stack of open / lingering question cards as escaped HTML. */
-export function renderApprovalCardsHTML(cards, busy) {
+export function renderApprovalCardsHTML(cards, busy, ticked = () => new Set()) {
   if (!Array.isArray(cards) || cards.length === 0) return '';
   let primaryOpenAssigned = false;
   return cards.map((card) => {
@@ -152,8 +197,12 @@ export function renderApprovalCardsHTML(cards, busy) {
       body += `<p class="muted small">${esc(card.message)}</p>`;
     } else {
       const enabled = card.phase === 'open' && !busy;
+      const multi = isMulti(q);
+      const set = multi ? ticked(q) : null;
       const buttons = (q.options || []).map((opt) => {
         const sending = card.phase === 'sending' && card.option && card.option.index === opt.index;
+        const on = multi && set.has(opt.index);
+        const box = multi ? `<span class="approval-box" aria-hidden="true">${on ? '☑' : '☐'}</span>` : '';
         const lbl = esc(labelOf(opt));
         const keyHint = isPrimary && opt.index >= 1 && opt.index <= 9 ? `<kbd aria-hidden="true">${opt.index}</kbd> ` : '';
         const rec = opt.recommended ? ' <span class="approval-rec">Recommended</span>' : '';
@@ -162,10 +211,18 @@ export function renderApprovalCardsHTML(cards, busy) {
           : '';
         const sendingTag = sending ? '<span class="muted small">Sending…</span>' : '';
         const aria = esc(`${askerOf(q)}: ${labelOf(opt)}${opt.recommended ? ' (Recommended)' : ''}`);
-        return `<button type="button" class="approval-opt${sending ? ' sending' : ''}" data-pending-id="${esc(q.id)}" data-option-index="${Number(opt.index)}" aria-label="${aria}"${enabled ? '' : ' disabled'}>` +
-          `<span class="approval-opt-main"><span>${keyHint}${lbl}${rec}</span>${desc}</span>${sendingTag}</button>`;
+        const pressed = multi ? ` aria-pressed="${on}"` : '';
+        return `<button type="button" class="approval-opt${sending ? ' sending' : ''}${on ? ' ticked' : ''}" data-pending-id="${esc(q.id)}" data-option-index="${Number(opt.index)}" aria-label="${aria}"${pressed}${enabled ? '' : ' disabled'}>` +
+          `${box}<span class="approval-opt-main"><span>${keyHint}${lbl}${rec}</span>${desc}</span>${sendingTag}</button>`;
       }).join('');
+      if (multi) body += '<p class="muted small approval-hint">Tick one or more, then Submit.</p>';
       body += `<div class="approval-options">${buttons}</div>`;
+      const sendingAction = card.phase === 'sending' && card.extra;
+      const submit = multi
+        ? `<button type="button" class="approval-submit primary" data-pending-id="${esc(q.id)}" data-action="submit"${enabled && set.size > 0 ? '' : ' disabled'}>${sendingAction && card.extra.options ? 'Sending…' : `Submit${set.size ? ` (${set.size})` : ''}`}</button>`
+        : '';
+      const dismiss = `<button type="button" class="approval-dismiss" data-pending-id="${esc(q.id)}" data-action="dismiss" title="Close the question without an answer (presses Esc on the agent's screen)"${enabled ? '' : ' disabled'}>${sendingAction && card.extra.dismiss ? 'Sending…' : 'Dismiss (Esc)'}</button>`;
+      body += `<div class="approval-actions">${submit}${dismiss}</div>`;
     }
     if (card.error) {
       body += `<p class="error approval-error">${esc(card.error)}</p>`;

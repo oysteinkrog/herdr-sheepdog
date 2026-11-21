@@ -93,6 +93,15 @@ input[type=file] { max-width: 100%; }
 .approval-rec { display: inline-block; margin-left: .35rem; padding: .05rem .45rem; border-radius: var(--radius-pill); font-size: .8em; font-weight: 600; background: color-mix(in srgb, var(--blocked) 10%, var(--card)); color: var(--blocked-text); }
 .approval-outcome { margin: 0; font-weight: 600; color: var(--done); }
 .approval-error { margin: .2rem 0 0; }
+.approval-opt { justify-content: flex-start; min-height: 3rem; }
+.approval-opt .approval-opt-main { flex: 1 1 auto; }
+.approval-box { font-size: 1.5rem; line-height: 1; flex: none; }
+.approval-opt.ticked { border: 2px solid var(--primary); background: color-mix(in srgb, var(--primary) 10%, var(--card)); }
+.approval-hint { margin: 0; }
+.approval-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+.approval-actions button { flex: 1 1 8rem; min-height: 3rem; font-weight: 600; }
+.approval-submit { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.approval-submit:disabled { opacity: .5; }
 #reload-banner button { flex: none; background: var(--card); }
 
 /* Cards (the orchestrator's show tool): a dialog with the card, and a row in the transcript that opens it again. */

@@ -1,0 +1,12 @@
+❯ Call the AskUserQuestion tool exactly once: one question 'Which letters?', header 'Letters', multiSelect true.
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+←  ☒ Letters  ✔ Submit  →
+
+Review your answers
+
+ ● Which letters?
+   → Bravo
+
+❯ 1. Submit answers
+  2. Cancel

@@ -125,3 +125,26 @@ test('approvalDigitOption maps 1-9 to primary open card only outside text fields
   assert.equal(approvalDigitOption(cards, '2', { inField: false, metaKey: false, ctrlKey: false, altKey: false, dialogOpen: true }), null);
   assert.equal(approvalDigitOption(cards, '9', { inField: false, metaKey: false, ctrlKey: false, altKey: false, dialogOpen: false }), null);
 });
+
+// Multi-select (2026-11-21): a tap ticks a box and sends nothing; Submit
+// sends the ticked set; Dismiss sends esc. "Type something" never comes
+// from the daemon as an option, so it can never be ticked here.
+test('multi-select: taps tick, Submit sends the set, Dismiss closes', async () => {
+  const sent = [];
+  const flow = createApprovals({ postAnswer: async (id, option, key, extra) => { sent.push({ id, option, extra }); return { status: 200, body: {} }; } });
+  const q = { id: 'ap-1', kind: 'answer_prompt', multi_select: true, options: [{ index: 1, label: 'Alpha' }, { index: 2, label: 'Bravo', checked: true }, { index: 3, label: 'Charlie' }] };
+  const app = { questions: [q] };
+  await flow.answer(q, q.options[0]);
+  flow.toggle(q, q.options[1]);
+  assert.equal(sent.length, 0, 'a tap sent an answer');
+  assert.deepEqual([...flow.ticked(q)].sort(), [1]);
+  const html = renderApprovalCardsHTML(flow.cards(app), false, flow.ticked);
+  assert.match(html, /Submit \(1\)/);
+  assert.match(html, /Dismiss \(Esc\)/);
+  await flow.submit(q);
+  assert.deepEqual(sent, [{ id: 'ap-1', option: 0, extra: { options: [1] } }]);
+
+  const q2 = { ...q, id: 'ap-2' };
+  await flow.dismiss(q2);
+  assert.deepEqual(sent[1], { id: 'ap-2', option: 0, extra: { dismiss: true } });
+});

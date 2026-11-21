@@ -395,6 +395,10 @@ func (s *Server) questionViews() []PendingView {
 type pendingAnswerRequest struct {
 	ID     string `json:"id"`
 	Option int    `json:"option"`
+	// Options are a multi-select question's ticked options (1-based), sent
+	// with Submit; Dismiss closes the question with esc instead.
+	Options []int `json:"options,omitempty"`
+	Dismiss bool  `json:"dismiss,omitempty"`
 }
 
 // handlePendingAnswer answers the open question with the option the
@@ -412,13 +416,19 @@ func (s *Server) handlePendingAnswer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "bad body: "+err.Error())
 		return
 	}
-	if strings.TrimSpace(req.ID) == "" || req.Option < 1 {
-		writeError(w, http.StatusBadRequest, "id and a 1-based option are required")
+	if strings.TrimSpace(req.ID) == "" || (req.Option < 1 && len(req.Options) == 0 && !req.Dismiss) {
+		writeError(w, http.StatusBadRequest, "id and a 1-based option (or options, or dismiss) are required")
 		return
 	}
 	ctx, cancel := s.toolCtx()
 	defer cancel()
-	res, err := s.deps.Supervisor.AnswerTap(ctx, req.ID, req.Option)
+	var res voice.ToolResult
+	var err error
+	if len(req.Options) > 0 || req.Dismiss {
+		res, err = s.deps.Supervisor.AnswerChoices(ctx, req.ID, req.Options, req.Dismiss)
+	} else {
+		res, err = s.deps.Supervisor.AnswerTap(ctx, req.ID, req.Option)
+	}
 	switch {
 	case errors.Is(err, supervisor.ErrPendingGone):
 		writeError(w, http.StatusConflict, supervisor.ErrPendingGone.Error())

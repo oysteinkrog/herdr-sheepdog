@@ -16,11 +16,11 @@
 <body>
 <header>
   <h1><span class="logo" aria-hidden="true"></span><span class="wordmark">sheepdog</span> <span class="page-name">voice</span></h1>
-  <div class="indicator" title="WebSocket to the daemon"><span class="dot" id="ws-dot"></span><span id="ws-text">ws: idle</span></div>
   <div class="indicator" title="voice session in the daemon"><span class="dot" id="voice-dot"></span><span id="voice-text">voice: …</span></div>
   <span class="header-actions">
-    <button id="btn-shortcuts" type="button" class="shortcuts-btn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
-    <a href="/debug">debug page</a>
+    <button id="btn-settings" type="button" class="settings-btn" title="Settings" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings-dialog">
+      <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
   </span>
 </header>
 
@@ -40,11 +40,14 @@
 
 <main id="app-main">
   <section class="card controls">
-    <div class="row buttons">
-      <button id="btn-connect" class="primary">Connect</button>
-      <button id="btn-mute" disabled title="M">Mute</button>
-      <button id="btn-stop" class="danger" disabled title="Space / Esc">Stop</button>
-      <button id="btn-new-conversation" class="danger" title="Clear the conversation with the voice and the orchestrator. The agents, promises, notes and open questions stay.">New conversation</button>
+    <button id="btn-mute" class="mic-btn" type="button" title="M" aria-pressed="false">
+      <svg class="mic-icon" viewBox="0 0 24 24" width="36" height="36" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><path d="M12 18v4"/><path class="mic-slash" d="M3 3l18 18"/></svg>
+      <span id="mic-label">Start</span>
+    </button>
+    <div class="icon-buttons">
+      <button id="btn-connect" class="icon-btn" type="button" aria-label="Connect"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6"/><path d="M15 2v6"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v5"/></svg><span id="connect-label">Connect</span></button>
+      <button id="btn-stop" class="icon-btn danger" type="button" disabled title="Stop talking (Space / Esc)" aria-label="Stop talking"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg><span>Stop</span></button>
+      <button id="btn-new-conversation" class="icon-btn" type="button" title="New conversation: clear the conversation with the voice and the orchestrator. The agents, promises, notes and open questions stay." aria-label="New conversation"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span>New</span></button>
     </div>
     <div class="row">
       <label class="meter-label">mic
@@ -55,7 +58,6 @@
       <span id="speaking-flag" class="pill speaking hidden">speaking</span>
       <span id="new-conversation-result" class="muted small"></span>
     </div>
-    <p class="spend small" id="spend-line" aria-live="off">Cost: loading…</p>
     <div class="row hidden" id="file-row">
       <span id="file-controls" class="row hidden">
         <input type="file" id="file-input" accept=".wav,audio/wav,audio/x-wav,audio/*">
@@ -69,9 +71,7 @@
     <p id="aec-hint" class="hint hidden"></p>
   </section>
 
-  <section id="approvals" class="approvals hidden" aria-label="Open questions" aria-live="polite"></section>
-
-  <section class="card">
+  <section class="card transcript-card">
     <h2>Transcript</h2>
     <div id="transcript" class="transcript"><p class="muted">Nothing yet.</p></div>
   </section>
@@ -83,9 +83,41 @@
     </div>
   </section>
 
-  <section class="card hidden" id="voice-pick">
+  <details class="card asks hidden" id="asks">
+    <summary><h2>Open questions <span class="pill" id="asks-count">0</span></h2></summary>
+    <section id="approvals" class="approvals hidden" aria-label="Open questions" aria-live="polite"></section>
+  </details>
+
+</main>
+
+<dialog id="card-dialog" class="card-dialog" aria-labelledby="card-title">
+  <form method="dialog" class="card-head">
+    <div>
+      <h2 id="card-title">Card</h2>
+      <p id="card-meta" class="muted small"></p>
+    </div>
+    <button value="close" aria-label="Close the card">Done</button>
+  </form>
+  <div id="card-body" class="card-body"></div>
+</dialog>
+
+<dialog id="settings-dialog" class="card-dialog settings-dialog" aria-labelledby="settings-title">
+  <form method="dialog" class="card-head">
+    <div>
+      <h2 id="settings-title">Settings</h2>
+    </div>
+    <button value="close" class="settings-done" aria-label="Close settings">Done</button>
+  </form>
+  <div class="card-body settings-body">
+  <section class="settings-section">
+    <h2>Driving</h2>
+    <label class="switch-row"><input type="checkbox" id="set-wake" checked> Keep the screen on while this page is open</label>
+    <p class="muted small" id="wake-status"></p>
+  </section>
+
+  <section class="settings-section hidden" id="voice-pick">
     <h2>Voice</h2>
-    <div class="row">
+    <div class="settings-fields">
       <label>Model
         <select id="pick-model"></select>
       </label>
@@ -100,17 +132,31 @@
     <p class="muted small" id="pick-note">Changes apply when the next voice session starts: after 45 s of quiet, or after New conversation.</p>
   </section>
 
-  <details class="card stats" id="spend-details">
-    <summary><h2>Cost details</h2></summary>
+  <section class="settings-section" id="spend-details">
+    <h2>Cost</h2>
+    <p class="spend small" id="spend-line" aria-live="off">Cost: loading…</p>
+    <div class="stats">
     <dl>
       <dt>today</dt><dd id="sp-today">–</dd>
       <dt>this conversation</dt><dd id="sp-conv">–</dd>
       <dt>counted since</dt><dd id="sp-since">–</dd>
     </dl>
     <p class="muted small">An estimate at list prices, from what this computer logged today. Voice: the GPT-Live session time OpenAI reports, at <span id="sp-voice-price">$0.05</span> per minute. Orchestrator: the tokens of each step, at the model's price per million tokens. Agent sessions and other tools are not counted.</p>
-  </details>
+    </div>
+  </section>
 
-  <details class="card stats" id="stats">
+  <section class="settings-section">
+    <h2>Connection</h2>
+    <div class="indicator" title="WebSocket to the daemon"><span class="dot" id="ws-dot"></span><span id="ws-text">ws: idle</span></div>
+  </section>
+
+  <section class="settings-section">
+    <h2>More</h2>
+    <div class="settings-links">
+      <button id="btn-shortcuts" type="button" title="Keyboard shortcuts (?)">Keyboard shortcuts</button>
+      <a class="button" href="/debug">Debug page</a>
+    </div>
+    <details class="stats" id="stats">
     <summary><h2>Stats</h2></summary>
     <dl>
       <dt>audio context</dt><dd id="st-ctx">–</dd>
@@ -127,19 +173,9 @@
       <dt>protocol</dt><dd id="st-protocol">–</dd>
     </dl>
   </details>
-
-  <p class="muted small">Keys: <kbd>1</kbd>–<kbd>9</kbd> answer question · <kbd>M</kbd> mute · <kbd>Space</kbd>/<kbd>Esc</kbd> stop · <kbd>?</kbd> shortcuts. Open this page on the exact host:port the daemon prints (same-origin WebSocket). <code>?gate=off</code> turns off the silence gate (<code>?gate_floor=8&amp;gate_hold=300&amp;gate_preroll=100</code> tune it).</p>
-</main>
-
-<dialog id="card-dialog" class="card-dialog" aria-labelledby="card-title">
-  <form method="dialog" class="card-head">
-    <div>
-      <h2 id="card-title">Card</h2>
-      <p id="card-meta" class="muted small"></p>
-    </div>
-    <button value="close" aria-label="Close the card">Done</button>
-  </form>
-  <div id="card-body" class="card-body"></div>
+    <p class="muted small">Keys: <kbd>1</kbd>–<kbd>9</kbd> answer question · <kbd>M</kbd> mute · <kbd>Space</kbd>/<kbd>Esc</kbd> stop · <kbd>?</kbd> shortcuts. Open this page on the exact host:port the daemon prints (same-origin WebSocket). <code>?gate=off</code> turns off the silence gate (<code>?gate_floor=8&amp;gate_hold=300&amp;gate_preroll=100</code> tune it).</p>
+  </section>
+  </div>
 </dialog>
 
 <dialog id="shortcuts-dialog" class="card-dialog" aria-labelledby="shortcuts-title">

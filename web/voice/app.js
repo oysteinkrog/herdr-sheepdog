@@ -14,6 +14,7 @@ import { createBuildReloader, takeReloadDraft } from './reload.js';
 import { voiceKeyAction } from './shortcuts.js';
 import { addFragment, closeLine, fragmentText } from './transcript.js';
 import { fmtUSD, spendLine, spendTitle } from './spend.js';
+import { createWakeLock } from './wakelock.js';
 import { applyUpdateBanner } from '/static/update-banner.js';
 
 const $ = (id) => document.getElementById(id);
@@ -799,11 +800,17 @@ function render() {
   setDot('voice', v === '…' ? 'idle' : state.voiceStalled ? 'stalled' : v === 'open' && state.playback.speaking ? 'open speaking' : v, `voice: ${v}${state.voiceReason && v === 'closed' ? ` (${state.voiceReason})` : ''}${state.daemonMuted && open ? ' · muted' : ''}${state.voiceStalled && open ? ' · stalled (no reply)' : ''}`);
 
   const btnConnect = $('btn-connect');
-  btnConnect.textContent = connected ? 'Disconnect' : 'Connect';
-  btnConnect.classList.toggle('primary', !connected);
-  $('btn-mute').disabled = !connected;
-  $('btn-mute').textContent = state.muted ? 'Unmute' : 'Mute';
-  $('btn-mute').classList.toggle('active', state.muted);
+  $('connect-label').textContent = connected ? 'Disconnect' : 'Connect';
+  btnConnect.setAttribute('aria-label', connected ? 'Disconnect' : 'Connect');
+  btnConnect.title = connected ? 'Disconnect from sheepdog' : 'Connect to sheepdog';
+  // The big mic button: Start before connecting, then mic on or off.
+  const mic = $('btn-mute');
+  const micState = !connected ? 'start' : state.muted ? 'off' : 'on';
+  mic.dataset.state = micState;
+  mic.setAttribute('aria-pressed', String(micState === 'on'));
+  $('mic-label').textContent = micState === 'start' ? 'Start' : micState === 'on' ? 'Mic on' : 'Mic off';
+  mic.title = micState === 'start' ? 'Connect and start talking' : micState === 'on' ? 'Mic is on. Tap to mute (M)' : 'Mic is off. Tap to turn it on (M)';
+  mic.setAttribute('aria-label', mic.title);
   $('btn-stop').disabled = !open;
   $('btn-text').disabled = !open;
   $('mute-flag').classList.toggle('hidden', !state.muted);
@@ -1050,7 +1057,7 @@ const buildReloader = createBuildReloader({
     userDisconnected: state.userDisconnected,
     approvalsBusy: approvals.busy(),
     sinceTypedMs: state.lastTypedAt ? Date.now() - state.lastTypedAt : Infinity,
-    dialogOpen: Boolean(($('card-dialog') && $('card-dialog').open) || ($('shortcuts-dialog') && $('shortcuts-dialog').open)),
+    dialogOpen: Boolean(($('card-dialog') && $('card-dialog').open) || ($('shortcuts-dialog') && $('shortcuts-dialog').open) || ($('settings-dialog') && $('settings-dialog').open)),
   }),
   getDraft: () => ($('text-input') ? $('text-input').value : ''),
   storage: typeof sessionStorage !== 'undefined' ? sessionStorage : null,
@@ -1082,6 +1089,13 @@ function renderApprovals() {
     box.innerHTML = html; // approvals.js escapes all fields
   }
   box.classList.toggle('hidden', cards.length === 0);
+  // Open questions sit folded below the transcript, so the transcript
+  // stays in the middle of the page; the count shows there are some.
+  const asks = $('asks');
+  if (asks) {
+    asks.classList.toggle('hidden', cards.length === 0);
+    $('asks-count').textContent = String(cards.length);
+  }
 }
 
 function applyStateSnapshot(data) {
@@ -1270,7 +1284,7 @@ async function init() {
   if (restoredDraft) $('text-input').value = restoredDraft;
 
   $('btn-connect').addEventListener('click', () => (state.userDisconnected ? connect() : disconnect()));
-  $('btn-mute').addEventListener('click', () => setMuted(!state.muted));
+  $('btn-mute').addEventListener('click', () => (state.userDisconnected ? connect() : setMuted(!state.muted)));
   $('btn-stop').addEventListener('click', stop);
   $('btn-new-conversation').addEventListener('click', resetConversation);
   $('btn-reload-now').addEventListener('click', () => buildReloader.reloadNow());
@@ -1321,6 +1335,43 @@ async function init() {
     if (state.fileSource) state.fileSource.loop = e.target.checked;
   });
 
+  // Settings: a dialog opened from the gear in the header.
+  const settingsDialog = $('settings-dialog');
+  settingsDialog.addEventListener('close', () => buildReloader.check());
+  $('btn-settings').addEventListener('click', () => {
+    if (typeof settingsDialog.showModal === 'function') {
+      if (!settingsDialog.open) settingsDialog.showModal();
+    } else {
+      settingsDialog.setAttribute('open', '');
+    }
+  });
+
+  // Driving mode: keep the screen on while the page is open (on by
+  // default, the choice kept per browser).
+  const WAKE_KEY = 'sheepdog.voice.keepAwake';
+  let keepAwake = true;
+  try { keepAwake = localStorage.getItem(WAKE_KEY) !== 'off'; } catch (_) { /* storage blocked */ }
+  const wakeText = {
+    on: 'The screen stays on while this page is open.',
+    off: 'Off: the screen turns off as usual.',
+    waiting: 'Waiting for the page to be visible.',
+    unsupported: 'This browser cannot keep the screen on. Change the screen timeout in the phone settings instead.',
+  };
+  const wake = createWakeLock({
+    nav: navigator, doc: document,
+    onChange: () => {
+      const st = wake.status();
+      $('wake-status').textContent = st === 'failed' ? `Could not keep the screen on: ${wake.error()}` : wakeText[st] || '';
+    },
+  });
+  $('set-wake').checked = keepAwake;
+  $('set-wake').disabled = !wake.supported;
+  $('set-wake').addEventListener('change', (e) => {
+    try { localStorage.setItem(WAKE_KEY, e.target.checked ? 'on' : 'off'); } catch (_) { /* storage blocked */ }
+    wake.set(e.target.checked);
+  });
+  wake.set(keepAwake && wake.supported);
+
   const shortcutsDialog = $('shortcuts-dialog');
   if (shortcutsDialog) shortcutsDialog.addEventListener('close', () => buildReloader.check());
   const openShortcuts = () => {
@@ -1348,11 +1399,11 @@ async function init() {
     const inField = Boolean(e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT'));
     const action = voiceKeyAction(e, {
       inField,
-      cardOpen: Boolean($('card-dialog') && $('card-dialog').open),
+      cardOpen: Boolean(($('card-dialog') && $('card-dialog').open) || ($('settings-dialog') && $('settings-dialog').open)),
       shortcutsOpen: Boolean(shortcutsDialog && shortcutsDialog.open),
       authOpen: Boolean($('auth-gate') && !$('auth-gate').classList.contains('hidden')),
       canStop: !$('btn-stop').disabled,
-      canMute: !$('btn-mute').disabled,
+      canMute: !state.userDisconnected,
       cards: approvals.cards(state.appState),
     });
     if (!action) return;

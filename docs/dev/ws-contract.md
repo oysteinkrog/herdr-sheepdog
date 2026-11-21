@@ -952,17 +952,25 @@ control messages; the daemon resamples for GPT-Live (which runs at
   with `--voice=off`.
 - `GET /api/voice/openai` (device-authenticated) → the GPT-Live model
   and output voice the next GPT-Live session opens with:
-  `{"provider":"openai","model":"gpt-live-1","voice":"marin","picked":false,"configured_model":"gpt-live-1","configured_voice":"marin","models":["gpt-live-1"],"voices":["marin","cedar",…],"price_per_minute_usd":0.05}`.
+  `{"provider":"openai","model":"gpt-live-1","voice":"marin","picked":false,"configured_model":"gpt-live-1","configured_voice":"marin","models":["gpt-live-1"],"voices":["marin","cedar",…],"price_per_minute_usd":0.05,"speed":"brisk","default_speed":"brisk","speeds":["relaxed","normal","brisk","fast"]}`.
   `models` are the `gpt-live…` ids the OpenAI key lists (`GET /models`,
   cached 10 min) plus the configured and default ones; `voices` is the
-  GPT-Live voice list. `404` when the daemon has no GPT-Live provider.
+  GPT-Live voice list. `speed` is the speaking speed the next session
+  asks for. GPT-Live has no speed field (`audio.output` takes only a
+  voice), so the speed is a pacing paragraph added to the end of the
+  session instructions (`gptlive.WithSpeed`, worded after OpenAI's
+  prompting guide, "Pace"); `normal` adds nothing. It is a request to the
+  model, not an exact rate. `404` when the daemon has no GPT-Live provider.
 - `PUT /api/voice/openai {"model":"gpt-live-1","voice":"cedar"}` keeps
   the pick in the state file (`session.openai_voice_model`,
   `session.openai_voice`; a value equal to the config is stored as no
   pick) and answers with the GET shape. It wins over
   `voice.openai.model` / `.voice` from the next GPT-Live session on; a
   session open now keeps its model and voice until it closes. `400` for a
-  model outside the `gpt-live` family or an unknown voice. The `/voice`
+  model outside the `gpt-live` family or an unknown voice. An optional
+  `"speed"` is kept in `session.openai_voice_speed` (the default `brisk`
+  is stored as no pick, and `""` goes back to it); without the field the
+  speed stays as it is, and an unknown speed is a `400`. The `/voice`
   page's Voice card uses it.
 - `GET /api/spend` (device-authenticated) → today's estimated spend
   (local date) and this conversation's (since the last New conversation

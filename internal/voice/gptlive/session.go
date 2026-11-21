@@ -145,6 +145,7 @@ type liveConn struct {
 	reason   string // why it was opened
 	model    string // the model and voice it was opened with (Config.Pick)
 	voice    string
+	speed    string // the speaking speed it was opened with (Config.Speed)
 	openedAt time.Time
 	cancel   context.CancelFunc
 	started  chan struct{}

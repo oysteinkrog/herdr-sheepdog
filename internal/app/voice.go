@@ -75,6 +75,7 @@ func (a *App) voiceProviders(gcfg gemini.Config, handler voice.ToolHandler) []vo
 			// session.openai_voice_model / openai_voice) win over the
 			// config, from the next live session on.
 			Pick:      a.openAIPick,
+			Speed:     a.openAISpeed,
 			IdleClose: time.Duration(oc.IdleCloseS) * time.Second,
 			Handler:   handler,
 			Classify:  router.Route,
@@ -107,6 +108,15 @@ func (a *App) openAIPick() (model, voiceName string) {
 	}
 	ss := a.store.Snapshot().Session
 	return ss.OpenAIVoiceModel, ss.OpenAIVoice
+}
+
+// openAISpeed is the GPT-Live speaking speed picked on the /voice page
+// (state file session.openai_voice_speed), "" for the default.
+func (a *App) openAISpeed() string {
+	if a.store == nil {
+		return ""
+	}
+	return a.store.Snapshot().Session.OpenAIVoiceSpeed
 }
 
 // restoreVoiceProvider applies the provider picked at runtime in an

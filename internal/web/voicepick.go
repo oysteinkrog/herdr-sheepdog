@@ -56,6 +56,12 @@ type VoiceOpenAIResponse struct {
 	Models           []string `json:"models"`
 	Voices           []string `json:"voices"`
 	PricePerMinuteUS float64  `json:"price_per_minute_usd"`
+	// Speed is the speaking speed the next GPT-Live session asks for
+	// (one of Speeds); DefaultSpeed without a pick. GPT-Live has no speed
+	// field, so it is a pacing line in the instructions.
+	Speed        string   `json:"speed"`
+	DefaultSpeed string   `json:"default_speed"`
+	Speeds       []string `json:"speeds"`
 }
 
 // SetVoiceOpenAIRequest is the body of PUT /api/voice/openai. An empty
@@ -63,6 +69,9 @@ type VoiceOpenAIResponse struct {
 type SetVoiceOpenAIRequest struct {
 	Model string `json:"model"`
 	Voice string `json:"voice"`
+	// Speed is optional: absent keeps the current speed, "" goes back to
+	// the default. A client that only knows model and voice keeps working.
+	Speed *string `json:"speed,omitempty"`
 }
 
 func (s *Server) openAIModels(ctx context.Context) []string {
@@ -112,6 +121,10 @@ func (s *Server) voiceOpenAIResponse(ctx context.Context) VoiceOpenAIResponse {
 	resp := VoiceOpenAIResponse{
 		Provider: s.voiceProvider(), Model: cm, Voice: cv, ConfiguredModel: cm, ConfiguredVoice: cv,
 		Models: s.openAIModels(ctx), Voices: slices.Clone(gptlive.Voices), PricePerMinuteUS: GPTLivePerMinuteUSD,
+		Speed: gptlive.DefaultSpeed, DefaultSpeed: gptlive.DefaultSpeed, Speeds: slices.Clone(gptlive.Speeds),
+	}
+	if gptlive.IsSpeed(ss.OpenAIVoiceSpeed) {
+		resp.Speed = ss.OpenAIVoiceSpeed
 	}
 	if ss.OpenAIVoiceModel != "" {
 		resp.Model, resp.Picked = ss.OpenAIVoiceModel, true
@@ -164,6 +177,17 @@ func (s *Server) handleSetVoiceOpenAI(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "unknown voice "+voiceName)
 		return
 	}
+	speed, setSpeed := "", req.Speed != nil
+	if setSpeed {
+		speed = strings.ToLower(strings.TrimSpace(*req.Speed))
+		if speed != "" && !gptlive.IsSpeed(speed) {
+			writeError(w, http.StatusBadRequest, "unknown speed "+speed+" (want one of "+strings.Join(gptlive.Speeds, ", ")+")")
+			return
+		}
+		if speed == gptlive.DefaultSpeed {
+			speed = ""
+		}
+	}
 	d := s.deps.OpenAIVoice
 	if model == d.Model || (d.Model == "" && model == gptlive.DefaultModel) {
 		model = ""
@@ -171,10 +195,15 @@ func (s *Server) handleSetVoiceOpenAI(w http.ResponseWriter, r *http.Request) {
 	if voiceName == d.Voice || (d.Voice == "" && voiceName == gptlive.DefaultVoice) {
 		voiceName = ""
 	}
-	if err := s.deps.Store.UpdateSession(func(ss *state.Session) { ss.OpenAIVoiceModel, ss.OpenAIVoice = model, voiceName }); err != nil {
+	if err := s.deps.Store.UpdateSession(func(ss *state.Session) {
+		ss.OpenAIVoiceModel, ss.OpenAIVoice = model, voiceName
+		if setSpeed {
+			ss.OpenAIVoiceSpeed = speed
+		}
+	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "persist: "+err.Error())
 		return
 	}
-	s.log.Log("web", "web.voice_openai_pick", "", map[string]any{"model": model, "voice": voiceName})
+	s.log.Log("web", "web.voice_openai_pick", "", map[string]any{"model": model, "voice": voiceName, "speed": s.deps.Store.Snapshot().Session.OpenAIVoiceSpeed})
 	writeJSON(w, http.StatusOK, s.voiceOpenAIResponse(r.Context()))
 }

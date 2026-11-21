@@ -273,7 +273,7 @@ func (a *App) wire() error {
 			ClearOverrides: func() error {
 				return store.UpdateSession(func(s *state.Session) {
 					s.VoiceProvider, s.BrainProvider, s.BrainModel = "", "", ""
-					s.OpenAIVoiceModel, s.OpenAIVoice = "", ""
+					s.OpenAIVoiceModel, s.OpenAIVoice, s.OpenAIVoiceSpeed = "", "", ""
 				})
 			},
 			SysAddrs: pair.SystemAddrs, TailscaleCLI: web.TailscaleInstalled, Boot: time.Now(),

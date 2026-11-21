@@ -1119,20 +1119,32 @@ async function refreshSpend() {
 // The GPT-Live model and voice (GET/PUT /api/voice/openai). The daemon
 // keeps the pick in its state file, so it holds across sessions and
 // devices. The card stays hidden when the daemon has no GPT-Live voice.
-function fillSelect(sel, values, current) {
+function fillSelect(sel, values, current, label = (v) => v) {
   sel.textContent = '';
   for (const v of values) {
     const o = document.createElement('option');
     o.value = v;
-    o.textContent = v;
+    o.textContent = label(v);
     if (v === current) o.selected = true;
     sel.appendChild(o);
   }
 }
 
+// Speeds are a pacing request in the voice's instructions (GPT-Live has
+// no speed field), so they are named, not numbered.
+const SPEED_LABELS = { relaxed: 'Relaxed', normal: 'Normal', brisk: 'Brisk', fast: 'Fast' };
+
+function speedLabel(v, def) {
+  const name = SPEED_LABELS[v] || v;
+  return v === def ? `${name} (default)` : name;
+}
+
 function applyVoicePick(data) {
   fillSelect($('pick-model'), data.models || [], data.model);
   fillSelect($('pick-voice'), data.voices || [], data.voice);
+  const speeds = data.speeds || [];
+  $('pick-speed').closest('label').classList.toggle('hidden', speeds.length === 0);
+  fillSelect($('pick-speed'), speeds, data.speed, (v) => speedLabel(v, data.default_speed));
   $('pick-note').textContent = data.provider === 'openai'
     ? 'Changes apply when the next voice session starts: after 45 s of quiet, or after New conversation.'
     : `The voice is ${data.provider || 'off'} now, not GPT-Live: these apply when GPT-Live is the voice.`;
@@ -1156,7 +1168,11 @@ async function saveVoicePick() {
   try {
     const r = await authedFetch('/api/voice/openai', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: $('pick-model').value, voice: $('pick-voice').value }),
+      body: JSON.stringify({
+        model: $('pick-model').value,
+        voice: $('pick-voice').value,
+        ...($('pick-speed').options.length ? { speed: $('pick-speed').value } : {}),
+      }),
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || `${r.status}`);
@@ -1378,6 +1394,7 @@ async function init() {
   openEventsStream();
   $('pick-model').addEventListener('change', saveVoicePick);
   $('pick-voice').addEventListener('change', saveVoicePick);
+  $('pick-speed').addEventListener('change', saveVoicePick);
   loadVoicePick();
   refreshSpend();
   setInterval(refreshSpend, SPEND_EVERY_MS);

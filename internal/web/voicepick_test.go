@@ -62,3 +62,38 @@ func TestVoiceOpenAIFallbacks(t *testing.T) {
 		t.Errorf("GET without GPT-Live = %d", code)
 	}
 }
+
+// The speaking speed: brisk by default, a pick kept in the state file and
+// left alone by a PUT without "speed" (an older client), "" back to the
+// default, and a 400 for an unknown speed.
+func TestVoiceOpenAISpeed(t *testing.T) {
+	h := newHarness(t, harnessOpts{voice: true, switcher: true, openAIVoice: &OpenAIVoiceDeps{Model: "gpt-live-1", Voice: "marin"}})
+	var got VoiceOpenAIResponse
+	if code := h.getJSON("/api/voice/openai", &got); code != http.StatusOK || got.Speed != "brisk" || got.DefaultSpeed != "brisk" || !slices.Equal(got.Speeds, []string{"relaxed", "normal", "brisk", "fast"}) {
+		t.Fatalf("GET = %d %+v", code, got)
+	}
+	var e map[string]string
+	if code, _ := h.sendJSON(http.MethodPut, "/api/voice/openai", map[string]any{"speed": "ludicrous"}, &e); code != http.StatusBadRequest {
+		t.Errorf("PUT speed ludicrous = %d %v", code, e)
+	}
+	if code, raw := h.sendJSON(http.MethodPut, "/api/voice/openai", map[string]any{"speed": "Fast"}, &got); code != http.StatusOK || got.Speed != "fast" {
+		t.Fatalf("PUT fast = %d %s", code, raw)
+	}
+	if ss := h.store.Snapshot().Session; ss.OpenAIVoiceSpeed != "fast" {
+		t.Errorf("state speed = %q, want fast", ss.OpenAIVoiceSpeed)
+	}
+	// A PUT that names only a voice keeps the speed.
+	if code, raw := h.sendJSON(http.MethodPut, "/api/voice/openai", map[string]any{"voice": "cedar"}, &got); code != http.StatusOK || got.Speed != "fast" || got.Voice != "cedar" {
+		t.Fatalf("PUT voice only = %d %s", code, raw)
+	}
+	// The default is stored as no pick; "" also means the default.
+	if code, raw := h.sendJSON(http.MethodPut, "/api/voice/openai", map[string]any{"speed": "brisk"}, &got); code != http.StatusOK || got.Speed != "brisk" || h.store.Snapshot().Session.OpenAIVoiceSpeed != "" {
+		t.Fatalf("PUT brisk = %d %s", code, raw)
+	}
+	if code, raw := h.sendJSON(http.MethodPut, "/api/voice/openai", map[string]any{"speed": "normal"}, &got); code != http.StatusOK || got.Speed != "normal" {
+		t.Fatalf("PUT normal = %d %s", code, raw)
+	}
+	if code, raw := h.sendJSON(http.MethodPut, "/api/voice/openai", map[string]any{"speed": ""}, &got); code != http.StatusOK || got.Speed != "brisk" || h.store.Snapshot().Session.OpenAIVoiceSpeed != "" {
+		t.Fatalf("PUT \"\" = %d %s", code, raw)
+	}
+}

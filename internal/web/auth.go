@@ -109,6 +109,11 @@ func presentedTicket(r *http.Request) string {
 	if b, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "+ticketPrefix); ok {
 		return strings.TrimSpace(b)
 	}
+	// Android 0.1.0 sends the bare ticket without the sds_ prefix. The ticket is
+	// 32 random bytes either way, so accept it; the app adds the prefix since.
+	if b, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok && strings.TrimSpace(b) != "" {
+		return strings.TrimSpace(b)
+	}
 	if c, err := r.Cookie(sessionCookie); err == nil {
 		return c.Value
 	}

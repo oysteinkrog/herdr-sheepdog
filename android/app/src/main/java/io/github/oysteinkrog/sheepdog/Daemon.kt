@@ -270,13 +270,13 @@ class Daemon(private val ctx: Context) {
     }
 
     fun request(path: String): Request.Builder =
-        Request.Builder().url(base + path).header("Authorization", "Bearer ${currentTicket()}")
+        Request.Builder().url(base + path).header("Authorization", "Bearer sds_${currentTicket()}")
 
     fun dropTicket() { ticket = null }
 
     private fun call(base: String, method: String, path: String, body: JSONObject?, ticket: String?, headers: Map<String, String> = emptyMap()): JSONObject {
         val rb = Request.Builder().url(base + path)
-        if (ticket != null) rb.header("Authorization", "Bearer $ticket")
+        if (ticket != null) rb.header("Authorization", "Bearer sds_$ticket")
         for ((k, v) in headers) rb.header(k, v)
         val reqBody = body?.toString()?.toRequestBody("application/json".toMediaType())
         rb.method(method, reqBody ?: if (method == "POST") ByteArray(0).toRequestBody(null) else null)
